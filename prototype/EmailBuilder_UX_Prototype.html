@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EmailAuto · UX Prototype — One-screen Email Creator</title>
+<style>
+  :root{
+    --accent:#c12a4e;            /* brand accent (email content only) */
+    --bg:#eef0f4; --panel:#ffffff; --ink:#141821; --muted:#7a8090;
+    --line:#e4e7ee; --line2:#eef1f6; --soft:#f6f7fb;
+    --ok:#1f9d55; --shadow:0 1px 2px rgba(20,24,33,.05),0 8px 24px rgba(20,24,33,.06);
+    --radius:14px;
+    /* Crossian tonal blues — dark bar → medium actions → light tints */
+    --b900:#101E45; --b800:#1A3168; --b700:#22409A; --b600:#2D52B9; --b500:#4468C9;
+    --b300:#9AAEE3; --b100:#E6ECFB; --b50:#F4F7FE;
+    --brand:var(--b700); --brand2:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  button{font-family:inherit;cursor:pointer}
+
+  /* ============ TOP BAR: 3 big step tabs ============ */
+  .topbar{display:flex;align-items:center;gap:18px;padding:10px 18px;background:linear-gradient(90deg,var(--b900),var(--b800));border-bottom:1px solid var(--b900);flex:none}
+  .logo{width:30px;height:30px;border-radius:8px;background:#fff;color:var(--b800);display:grid;place-items:center;font-weight:800;font-size:15px}
+  .topbar .name{font-size:15px;font-weight:700;white-space:nowrap;color:#fff}
+  .mtag{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:rgba(255,255,255,.18);padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle}
+  .t3wrap{display:flex;gap:8px;margin-left:10px}
+  .t3{border:1.5px solid rgba(255,255,255,.35);background:transparent;border-radius:11px;padding:9px 18px;font-size:13.5px;font-weight:700;color:rgba(255,255,255,.85);transition:.15s;display:flex;align-items:center;gap:8px}
+  .t3 .n{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);font-size:11px;display:grid;place-items:center;color:#fff}
+  .t3:hover{border-color:#fff;color:#fff}
+  .t3.on{background:#fff;border-color:#fff;color:var(--b800)}
+  .t3.on .n{background:var(--brand2);border-color:transparent;color:var(--b800)}
+
+  .tabpage{display:none;flex:1;min-height:0}
+  .tabpage.on{display:flex}
+  .app{display:flex;width:100%;height:100%;overflow:hidden}
+
+  /* ============ UNDER CONSTRUCTION PAGES ============ */
+  .uc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:30px}
+  .uc .icn{font-size:52px}
+  .uc h3{margin:0;font-size:20px}
+  .uc p{margin:0;color:var(--muted);max-width:460px;line-height:1.6}
+  .uc .tpllist{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 20px;min-width:320px;box-shadow:var(--shadow)}
+  .uc .tpllist b{display:block;font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+  .uc .tplrow{display:flex;justify-content:space-between;gap:20px;font-size:13px;padding:5px 0;border-top:1px solid var(--line2)}
+  .uc .tplrow code{color:var(--b700);font-weight:700}
+  .uc .none{color:var(--muted);font-size:13px;font-style:italic}
+
+  /* ============ LEFT PANEL ============ */
+  .left{width:54%;min-width:480px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  .steps{flex:1;overflow:auto;padding:14px}
+
+  .acc{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;background:var(--panel);overflow:hidden;transition:.2s}
+  .acc-head{display:flex;align-items:center;gap:12px;padding:14px 14px;cursor:pointer;user-select:none}
+  .acc-head .num{width:24px;height:24px;border-radius:50%;background:var(--soft);border:1px solid var(--line);color:var(--muted);font-size:12px;font-weight:700;display:grid;place-items:center;flex:none}
+  .acc.open .acc-head .num{background:var(--brand);border-color:var(--brand);color:#fff}
+  .acc-head .t{flex:1}
+  .acc-head .t b{display:block;font-size:14px}
+  .acc-head .t span{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+  .chev{color:var(--muted);transition:transform .2s;font-size:12px}
+  .acc.open .chev{transform:rotate(180deg)}
+  .acc-body{max-height:0;overflow:hidden;transition:max-height .25s ease;border-top:1px solid transparent}
+  .acc.open .acc-body{max-height:420px;border-top-color:var(--line2)}
+  .acc-inner{padding:14px}
+
+  .field{margin-bottom:12px}
+  .field:last-child{margin-bottom:0}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .sel,.inp{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13.5px;color:var(--ink);appearance:none}
+  .sel{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%237a8090' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+  .sel:focus,.inp:focus{outline:none;border-color:var(--b500);box-shadow:0 0 0 3px color-mix(in srgb,var(--b500) 14%,transparent)}
+  .row2{display:flex;gap:10px}
+  .row2 .field{flex:1}
+  .row2 .field.small{flex:0 0 120px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+
+  .acc.locked{background:var(--soft);opacity:.9}
+  .acc.locked .acc-head{cursor:default}
+  .acc.locked .num{background:#e9ebf1;color:#a6acbb;border-color:#e4e7ee}
+  .lockmsg{font-size:12px;color:var(--muted);padding:0 14px 14px;display:none}
+  .acc.locked.open .lockmsg{display:block}
+
+  .genwrap{padding:14px;border-top:1px solid var(--line);background:var(--panel);display:flex;gap:10px}
+  .btn-gen{flex:1;padding:14px;border:none;border-radius:12px;background:linear-gradient(90deg,var(--b900),var(--b800));color:#fff;font-weight:700;font-size:15px;box-shadow:var(--shadow);transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-gen:hover{filter:brightness(1.25);transform:translateY(-1px)}
+  .btn-gen:active{transform:translateY(0)}
+  .btn-gen:disabled{opacity:.65;cursor:wait;transform:none}
+  .btn-cancel{flex:0 0 auto;padding:14px 18px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font-weight:700;font-size:13px;display:none}
+  .btn-cancel.show{display:block}
+  .btn-cancel:hover{border-color:#c0392b;color:#c0392b}
+
+  /* ============ RIGHT PANEL ============ */
+  .right{flex:1;display:flex;flex-direction:column;min-width:0}
+  .pv-top{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .pv-top h2{font-size:14px;margin:0;font-weight:700}
+  .saved{font-size:11.5px;color:var(--ok);font-weight:600}
+  .pv-top .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:3px}
+  .seg button{border:none;background:transparent;padding:6px 12px;border-radius:7px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .toggle{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .switch{width:38px;height:22px;border-radius:20px;background:#d3d8e2;position:relative;transition:.2s}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .switch.on{background:var(--b600)}
+  .switch.on::after{transform:translateX(16px)}
+  .btn-exp{border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+  .btn-exp:hover{border-color:var(--brand);color:var(--brand)}
+  .btn-exp:disabled{opacity:.45;cursor:not-allowed}
+  .btn-exp:disabled:hover{border-color:var(--line);color:var(--ink)}
+
+  /* segment tabs + layout toggle */
+  .segbar{display:flex;align-items:center;gap:8px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .segbar .lbl{font-size:12px;color:var(--muted);font-weight:700}
+  .segtab{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;color:var(--muted);transition:.15s}
+  .segtab:hover{border-color:var(--b500);color:var(--b700)}
+  .segtab.on{background:var(--b100);border-color:var(--b700);color:var(--b700)}
+  .segtab.dim{opacity:.5}
+  .segtab .tick{margin-left:4px}
+  .qchip{border:1px solid #e7c66a;background:#fdf6e3;color:#8a6d1a;border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;display:none}
+  .qchip.show{display:inline-block}
+  .segbar .spacer{flex:1}
+  .laybtn{border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:7px 12px;font-size:12px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+  .laybtn:hover{border-color:var(--b500);color:var(--b700)}
+  .laybtn:disabled{opacity:.5;cursor:not-allowed}
+  .laybtn .car{transition:transform .2s;font-size:10px;color:var(--muted)}
+  .laybtn.on .car{transform:rotate(180deg)}
+
+  /* layout options panel */
+  .laypanel{display:none;gap:26px;flex-wrap:wrap;padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .laypanel.on{display:flex}
+  .lgroup .glbl{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .lrow{display:flex;gap:8px;flex-wrap:wrap}
+  .lopt{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;text-align:center;font-size:11px;font-weight:600;color:var(--muted);background:#fff;min-width:86px;transition:.15s}
+  .lopt:hover{border-color:var(--b500)}
+  .lopt.on{border-color:var(--b700);background:var(--b50);color:var(--ink)}
+  .g{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center;height:24px;margin-bottom:6px}
+  .g.col{flex-direction:column}
+  .gb{background:#c9d2e3;border-radius:2px}
+  .lopt.on .gb{background:var(--b600)}
+  .schip{border:1px solid var(--line);border-radius:16px;padding:6px 12px;font-size:11.5px;font-weight:700;background:#fff;color:var(--muted);transition:.15s}
+  .schip:hover{border-color:var(--b500);color:var(--b700)}
+  .schip.on{border-color:var(--b700);color:var(--b700);background:var(--b100)}
+  .fopt{border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;cursor:pointer;font-size:11px;background:#fff;min-width:128px;transition:.15s;color:var(--ink)}
+  .fopt:hover{border-color:var(--b500)}
+  .fopt.on{border-color:var(--b700);background:var(--b50)}
+  .fopt b{display:block;font-size:11.5px;margin-bottom:4px}
+  .frow{background:var(--soft);border-radius:5px;padding:3px 8px;margin-top:3px;color:var(--muted);font-weight:600}
+  .fopt.on .frow{background:var(--b100);color:var(--b700)}
+
+  .pv-hint{font-size:12px;color:var(--muted);text-align:center;padding:8px;background:var(--b50);border-bottom:1px solid var(--line)}
+  .pv-hint b{color:var(--brand)}
+
+  .canvas{flex:1;overflow:auto;padding:26px;display:flex;justify-content:center;transition:background .2s}
+  .canvas.dark{background:#1d2230}
+  .pvcol{width:600px;max-width:100%;transition:width .25s;align-self:flex-start;position:relative}
+  .pvcol.mobile{width:375px}
+  .email{width:100%;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(20,24,33,.14);position:relative}
+
+  /* ===== S0 empty-state overlay ===== */
+  .empty-ovl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;pointer-events:none}
+  .empty-ovl.off{display:none}
+  .eo-card{pointer-events:auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 48px rgba(20,24,33,.18);padding:22px 26px;max-width:340px;text-align:center}
+  .eo-card .ic{font-size:26px}
+  .eo-card b{display:block;font-size:15px;margin:6px 0 4px}
+  .eo-card p{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.55}
+  .eo-link{border:none;background:none;color:var(--b700);font-weight:700;font-size:12.5px;text-decoration:underline;padding:0}
+
+  /* ===== ghost skeleton ===== */
+  .ghost{padding:12px 14px}
+  .gl{height:10px;border-radius:5px;background:#e8ebf3;margin:0 0 8px}
+  .g-center .gl{margin-left:auto;margin-right:auto}
+  .w30{width:30%}.w45{width:45%}.w60{width:60%}.w75{width:75%}.w90{width:90%}
+  .filling .gl{background:linear-gradient(90deg,#e8ebf3 25%,#f7f9fe 40%,#e8ebf3 60%);background-size:300% 100%;animation:shine 1s linear infinite}
+  @keyframes shine{to{background-position:-300% 0}}
+  .eb:not(.filled) .etext{display:none}
+  .eb.filled .ghost{display:none}
+  .eb:not(.filled):hover{outline:none;background:transparent}
+  .eb:not(.filled) .blk-tools{display:none!important}
+
+  /* hero product ghost */
+  .pghost{border:2px dashed var(--line);border-radius:12px;margin:12px 10px;padding:26px 18px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.6}
+  .pghost b{color:#5a6070}
+  .pcard.filled .pghost{display:none}
+  .pcard:not(.filled) .preal{display:none}
+
+  /* tiles ghost */
+  .tiles:not(.filled)::before{content:'📦 Product tiles — auto-filled from catalog on Generate';flex-basis:100%;text-align:center;font-size:11px;color:var(--muted);padding:2px 0 6px}
+  .tiles:not(.filled) img{filter:grayscale(1) opacity(.28)}
+  .tiles:not(.filled) .eimg-ovl{display:none}
+
+  /* editable blocks + image wraps */
+  .eb{position:relative;transition:background .15s;border-radius:8px}
+  .eb.filled:hover{background:var(--b50);outline:2px solid var(--b300);outline-offset:2px}
+  .eb .etext{padding:6px 10px}
+  .inbox.eb .etext{padding:0}
+  .eb.center .etext{text-align:center}
+  .etext[contenteditable=true]{outline:2px dashed var(--b500);background:#fff;cursor:text}
+  .etext p{margin:0 0 8px}
+  .etext p:last-child{margin:0}
+  .accent{color:var(--accent);font-weight:700}
+  .rev{font-style:italic;color:#333}
+
+  .blk-tools{position:absolute;top:4px;right:4px;display:none;gap:2px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:3px;box-shadow:var(--shadow);z-index:5;align-items:center}
+  .eb.filled:hover .blk-tools{display:flex}
+  .blk-tools button{border:none;background:transparent;padding:5px 7px;border-radius:6px;font-size:13px;color:#4a5060;line-height:1}
+  .blk-tools button:hover{background:var(--b50);color:var(--b700)}
+  .blk-tools .ver{font-size:11px;color:var(--muted);min-width:30px;text-align:center;font-weight:600}
+  .blk-tools .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
+  .scope{font-size:9px;font-weight:800;letter-spacing:.3px;padding:3px 6px;border-radius:5px;margin-right:2px}
+  .scope.all{background:#fdf1e3;color:#9a6b15}
+  .scope.seg{background:var(--b100);color:var(--b700)}
+  .regen-pulse{animation:pulse .5s ease}
+  @keyframes pulse{0%{opacity:.35}100%{opacity:1}}
+
+  .eimg{position:relative;display:block;line-height:0;border-radius:8px;overflow:hidden}
+  .eimg img{width:100%;display:block}
+  .eimg-ovl{position:absolute;inset:0;background:rgba(18,24,33,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0;transition:.18s;line-height:1.3}
+  .eimg:hover .eimg-ovl{opacity:1}
+  .eimg-ovl .cap{color:#fff;font-size:12px;font-weight:600}
+  .eimg-ovl .btns{display:flex;gap:8px}
+  .eimg-ovl button{border:none;background:#fff;color:var(--ink);font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px}
+  .eimg-ovl button:hover{background:var(--b600);color:#fff}
+
+  /* secondary product tiles */
+  .tiles{display:flex;flex-wrap:wrap;gap:12px;padding:0 10px;margin-top:12px}
+  .tiles .tile{flex:1 1 calc(50% - 6px);min-width:0}
+  .tiles.l-stack .tile{flex-basis:100%}
+  .tiles.l-two .tile{flex-basis:calc(50% - 6px)}
+  .tiles.l-three .tile{flex-basis:calc(33.333% - 8px)}
+  .tiles.l-hero .tile{flex-basis:calc(50% - 6px)}
+  .tiles.l-hero .tile:nth-child(3){display:none}
+
+  /* product block from catalog */
+  .pcard{border:1px solid var(--line2);border-radius:12px;margin:12px 10px;overflow:hidden;background:#fff}
+  .pinfo{padding:12px 14px 16px;text-align:center}
+  .pname{font-weight:800;font-size:16px}
+  .ptag{font-size:9.5px;background:#f1f3f8;color:#667;padding:2px 7px;border-radius:10px;font-weight:700;vertical-align:2px;margin-left:6px;letter-spacing:.2px}
+  .ptag.hero{background:color-mix(in srgb,var(--accent) 12%,#fff);color:var(--accent)}
+  .pusp{color:#555;font-size:12.5px;margin-top:3px}
+  .pprice{margin-top:6px;font-size:15px}
+  .pprice b{color:var(--accent)}
+  .pprice s{color:#9aa0ad;font-size:12.5px;margin-left:6px}
+  .pcta{display:inline-block;background:var(--accent);color:#fff;padding:10px 30px;border-radius:8px;font-weight:800;font-size:13px;text-decoration:none;margin-top:10px;letter-spacing:.4px}
+
+  .foot{padding:16px 20px;border-top:1px solid var(--line2);text-align:center;color:#8a8f9c;font-size:11px;line-height:1.7}
+  .foot a{color:#8a8f9c}
+  .foot .unsub{font-weight:700;text-decoration:underline}
+  .tagchip{font-family:Consolas,monospace;font-size:11px;background:var(--b100);color:var(--b700);padding:1px 6px;border-radius:5px;font-weight:600}
+
+  /* inbox preview */
+  .inbox{background:#fff;border-radius:12px;box-shadow:0 6px 24px rgba(20,24,33,.10);margin-bottom:14px;padding:12px 14px}
+  .inbox-row{display:flex;gap:10px;align-items:flex-start}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:grid;place-items:center;flex:none;font-size:15px}
+  .inbox .meta{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:2px}
+  .s-subj{font-weight:700;font-size:14px;line-height:1.35}
+  .s-pre{color:var(--muted);font-size:12.5px;margin-top:2px;line-height:1.45}
+
+  /* drag mode */
+  .email.dragmode .mod{cursor:grab}
+  .email.dragmode .mod:hover{outline:1.5px dashed var(--b300);outline-offset:3px;border-radius:8px}
+  .mod.ghosted{opacity:.35}
+
+  /* handoff bar */
+  .expwrap{padding:14px;border-top:1px solid var(--line);background:var(--panel)}
+  .btn-push{width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(90deg,var(--b900),var(--b800));color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow);transition:.15s}
+  .btn-push:hover{filter:brightness(1.25);transform:translateY(-1px)}
+  .btn-push:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#141821;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transition:.25s;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ============ 3 BIG STEP TABS ============ -->
+<header class="topbar">
+  <div class="logo" id="logo">B</div>
+  <div class="name">EmailAuto <span class="mtag">Prototype</span></div>
+  <div class="t3wrap">
+    <button class="t3 on" data-tab="create"><span class="n">1</span>Email HTML Create</button>
+    <button class="t3" data-tab="template"><span class="n">2</span>Template_ID Create</button>
+    <button class="t3" data-tab="send"><span class="n">3</span>Auto Send</button>
+  </div>
+</header>
+
+<!-- ============ TAB 1: EMAIL HTML CREATE ============ -->
+<div class="tabpage on" id="tab-create">
+<div class="app">
+
+  <!-- LEFT -->
+  <aside class="left">
+    <div class="steps">
+      <div class="acc open" data-acc>
+        <div class="acc-head"><div class="num">1</div>
+          <div class="t"><b>Brand &amp; Theme</b><span id="sum1">BraGoddess · Summer Sale</span></div>
+          <div class="chev">▼</div>
+        </div>
+        <div class="acc-body"><div class="acc-inner">
+          <div class="field"><label>Brand</label>
+            <select class="sel" id="selBrand">
+              <option value="BraGoddess" data-accent="#c12a4e" selected>BraGoddess</option>
+              <option value="GentsLux" data-accent="#1f3a5f">GentsLux</option>
+              <option value="LuxFitting" data-accent="#6b4e9e">LuxFitting</option>
+              <option value="SantaFare" data-accent="#b8342b">SantaFare</option>
+            </select>
+          </div>
+          <div class="field"><label>Theme</label>
+            <select class="sel" id="selTheme">
+              <option selected>Summer Sale</option>
+              <option>Winback</option>
+              <option>New Arrival</option>
+              <option>Abandoned Cart</option>
+              <option>Loyalty / VIP</option>
+            </select>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc open" data-acc>
+        <div class="acc-head"><div class="num">2</div>
+          <div class="t"><b>Promo</b><span id="sum2">75% off · Free ship $35+</span></div>
+          <div class="chev">▼</div>
+        </div>
+        <div class="acc-body"><div class="acc-inner">
+          <div class="row2">
+            <div class="field"><label>Promo type</label>
+              <select class="sel" id="selPromo">
+                <option selected>% Discount</option>
+                <option>Buy X get Y</option>
+                <option>Free gift</option>
+                <option>Flash sale</option>
+              </select>
+            </div>
+            <div class="field small"><label>Value</label>
+              <input class="inp" id="inpVal" value="75%">
+              <div class="hint">default 75%</div>
+            </div>
+          </div>
+          <div class="field"><label>Free shipping</label>
+            <select class="sel" id="selShip">
+              <option selected>Orders $35+</option>
+              <option>Orders $50+</option>
+              <option>All orders</option>
+              <option>None</option>
+            </select>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc locked" data-acc data-locked>
+        <div class="acc-head"><div class="num">3</div>
+          <div class="t"><b>Product 🔒</b><span>Owned by another module · 3 products staged (demo)</span></div>
+          <div class="chev">▼</div>
+        </div>
+        <div class="lockmsg">Product selection belongs to another module. For this demo, 3 catalog products are pre-staged — they fill the preview when you Generate.</div>
+      </div>
+      <div class="acc locked" data-acc data-locked>
+        <div class="acc-head"><div class="num">4</div>
+          <div class="t"><b>Segment 🔒</b><span>Owned by another module · 21 / 22 / 8 staged (demo)</span></div>
+          <div class="chev">▼</div>
+        </div>
+        <div class="lockmsg">Segmentation belongs to another module — staged segments appear as tabs on the right. AI writes one email variant per segment.</div>
+      </div>
+      <div class="acc locked" data-acc data-locked>
+        <div class="acc-head"><div class="num">5</div>
+          <div class="t"><b>Date &amp; hour send 🔒</b><span>Owned by another module</span></div>
+          <div class="chev">▼</div>
+        </div>
+        <div class="lockmsg">Send schedule belongs to another module — UI to be added later.</div>
+      </div>
+    </div>
+
+    <div class="genwrap">
+      <button class="btn-gen" id="btnGen">⚡ Generate Email</button>
+      <button class="btn-cancel" id="btnCancel">✕ Cancel</button>
+    </div>
+  </aside>
+
+  <!-- RIGHT -->
+  <main class="right">
+    <div class="pv-top">
+      <h2>Draft Overview</h2>
+      <span class="saved" id="savedInd" hidden>Saved · just now</span>
+      <div class="spacer"></div>
+      <div class="seg" id="segWidth">
+        <button data-w="desktop" class="on">Desktop</button>
+        <button data-w="mobile">Mobile</button>
+      </div>
+      <label class="toggle">Dark inbox <span class="switch" id="swDark"></span></label>
+      <button class="btn-exp" id="btnExp" disabled title="Generate first">⬇ Export HTML</button>
+    </div>
+
+    <div class="segbar" id="segbar">
+      <span class="lbl">Segment:</span>
+      <button class="qchip" id="qchip" title="Click for details">Score 86 · 2 ⚠</button>
+      <span class="spacer"></span>
+      <button class="laybtn" id="layBtn">🧩 Layout <span id="laySum">· Hero + 2 per row · Custom flow</span> <span class="car">▼</span></button>
+    </div>
+
+    <div class="laypanel" id="layPanel">
+      <div class="lgroup">
+        <div class="glbl">Subject style <span style="font-weight:600;text-transform:none">· 3 styles</span></div>
+        <div class="lrow" id="subjStyles">
+          <button class="schip on" data-s="0">S1 · Direct</button>
+          <button class="schip" data-s="1">S2 · Benefit</button>
+          <button class="schip" data-s="2">S3 · Urgency</button>
+        </div>
+      </div>
+      <div class="lgroup">
+        <div class="glbl">Product layout</div>
+        <div class="lrow" id="prodLayouts">
+          <div class="lopt" data-l="stack">
+            <div class="g col"><div class="gb" style="width:26px;height:4px"></div><div class="gb" style="width:26px;height:4px"></div><div class="gb" style="width:26px;height:4px"></div></div>
+            Stacked · 1×3
+          </div>
+          <div class="lopt" data-l="two">
+            <div class="g" style="width:30px"><div class="gb" style="width:12px;height:8px"></div><div class="gb" style="width:12px;height:8px"></div><div class="gb" style="width:12px;height:8px"></div><div class="gb" style="width:12px;height:8px"></div></div>
+            2 per row · 2 rows
+          </div>
+          <div class="lopt" data-l="three">
+            <div class="g"><div class="gb" style="width:8px;height:8px;border-radius:50%"></div><div class="gb" style="width:8px;height:8px;border-radius:50%"></div><div class="gb" style="width:8px;height:8px;border-radius:50%"></div></div>
+            3 per row · 1 row
+          </div>
+          <div class="lopt on" data-l="hero">
+            <div class="g col"><div class="gb" style="width:26px;height:6px"></div><div style="display:flex;gap:3px"><div class="gb" style="width:12px;height:6px"></div><div class="gb" style="width:12px;height:6px"></div></div></div>
+            Hero + 2 per row
+          </div>
+        </div>
+      </div>
+      <div class="lgroup">
+        <div class="glbl">Body placement</div>
+        <div class="lrow" id="bodyFlows">
+          <div class="fopt" data-f="continuous"><b>Continuous body</b><div class="frow">Body</div><div class="frow">P.S.</div><div class="frow">Products</div></div>
+          <div class="fopt" data-f="opener"><b>Opener + products</b><div class="frow">Opener</div><div class="frow">Products</div><div class="frow">Bridge / P.S.</div></div>
+          <div class="fopt on" data-f="custom"><b>Custom flow</b><div class="frow">Drag</div><div class="frow">modules</div><div class="frow">below</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pv-hint" id="pvHint">Skeleton preview — <b>brand assets are real</b> (config) · <b>gray blocks are AI-owned</b>, they fill on Generate</div>
+
+    <div class="canvas" id="canvas">
+      <div class="pvcol" id="pvcol">
+
+        <!-- S0 empty-state overlay -->
+        <div class="empty-ovl" id="emptyOvl">
+          <div class="eo-card">
+            <div class="ic">✨</div>
+            <b>Your email builds here</b>
+            <p>Fill the brief on the left, then hit <b>Generate Email</b>.<br>Brand assets &amp; product data fill automatically — AI writes the copy per segment.</p>
+            <button class="eo-link" id="tplBtn">Or start from a template →</button>
+          </div>
+        </div>
+
+        <!-- INBOX PREVIEW (per segment) -->
+        <div class="inbox eb" data-key="subject" data-seg>
+          <div class="inbox-row">
+            <div class="avatar" id="inAvatar">B</div>
+            <div style="flex:1;min-width:0">
+              <div class="meta"><span id="inSender">BraGoddess</span> · 7:00 PM · Inbox preview</div>
+              <div class="ghost"><div class="gl w75"></div><div class="gl w90" style="margin-bottom:0"></div></div>
+              <div class="etext"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="email" id="email">
+
+          <!-- banner: REAL from brand config (position locked) -->
+          <a class="eimg" data-img id="modBanner"><img src="https://cdn.selless.us/p/1an7lbxk5t7eebkhhdiuub21k/i/24vpgdaewpar9upzp2w2okg4z.webp" alt="banner"><span class="eimg-ovl"><span class="cap">🖼 Banner — brand config default (swap anytime)</span><span class="btns"><button data-act="link">Change URL</button><button data-act="up">Upload</button></span></span></a>
+
+          <!-- headline (AI · shared) -->
+          <div class="eb center mod" data-key="headline" data-mod="headline">
+            <div class="ghost g-center"><div class="gl w60"></div><div class="gl w75"></div><div class="gl w45"></div><div class="gl w60" style="margin-bottom:0"></div></div>
+            <div class="etext"></div>
+          </div>
+
+          <!-- story (AI · per segment) -->
+          <div class="eb mod" data-key="story" data-seg data-mod="story">
+            <div class="ghost"><div class="gl w90"></div><div class="gl w75"></div><div class="gl w90"></div><div class="gl w60" style="margin-bottom:0"></div></div>
+            <div class="etext"></div>
+          </div>
+
+          <!-- HERO PRODUCT BLOCK (catalog) -->
+          <div class="pcard mod" data-mod="hero" id="heroCard">
+            <div class="pghost"><b>📦 Hero product — locked slot 1</b><br>The Product module stages products; name, price &amp; USPs auto-fill from the catalog on Generate.</div>
+            <div class="preal">
+              <a class="eimg" data-img>
+                <img id="pImg" src="https://cdn.selless.us/p/58vtgd039w6bbhw06s3ygs86/i/1s3jkf677jab90iyy0hgad0f4.jpg" alt="ZoeShape">
+                <span class="eimg-ovl"><span class="cap">📦 Product block — auto-filled from catalog</span><span class="btns"><button data-act="swap">🔄 Swap product</button><button data-act="link">Change URL</button><button data-act="up">Upload</button></span></span>
+              </a>
+              <div class="pinfo">
+                <div class="pname"><span id="pName">ZoeShape</span><span class="ptag hero">HERO · LOCKED SLOT 1</span><span class="ptag">📦 CATALOG</span></div>
+                <div class="pusp" id="pUsp">Lift &amp; side-smoothing full-coverage support</div>
+                <div class="pprice"><b id="pPrice">💲24.99</b><s id="pOld">💲99.99</s></div>
+                <a class="pcta" id="pCta" href="https://bragoddess.com/zoeshape?{{paramurl}}" onclick="return false">SHOP NOW</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- secondary product tiles -->
+          <div class="tiles l-hero mod" id="tiles" data-mod="tiles">
+            <a class="eimg tile" data-img><img src="https://cdn.selless.us/p/1an7lbxk5t7eebkhhdiuub21k/i/24vpgdaewpar9upzp2w2okg4z.webp" alt="Daisy Bra"><span class="eimg-ovl"><span class="cap">🖼 Daisy Bra</span><span class="btns"><button data-act="link">Change URL</button><button data-act="up">Upload</button></span></span></a>
+            <a class="eimg tile" data-img><img src="https://cdn.selless.us/p/1an7lbxk5t7eebkhhdiuub21k/i/24vpgdaewpar9upzp2w2okg4z.webp" alt="Posy Bra"><span class="eimg-ovl"><span class="cap">🖼 Posy Bra</span><span class="btns"><button data-act="link">Change URL</button><button data-act="up">Upload</button></span></span></a>
+            <a class="eimg tile" data-img><img src="https://cdn.selless.us/p/58vtgd039w6bbhw06s3ygs86/i/1s3jkf677jab90iyy0hgad0f4.jpg" alt="Bloom Bra"><span class="eimg-ovl"><span class="cap">🖼 Bloom Bra</span><span class="btns"><button data-act="link">Change URL</button><button data-act="up">Upload</button></span></span></a>
+          </div>
+
+          <!-- bridge (AI · shared) -->
+          <div class="eb mod" data-key="iknow" data-mod="iknow">
+            <div class="ghost"><div class="gl w90"></div><div class="gl w75" style="margin-bottom:0"></div></div>
+            <div class="etext"></div>
+          </div>
+
+          <!-- offer (AI · shared) -->
+          <div class="eb mod" data-key="offer" data-mod="offer">
+            <div class="ghost"><div class="gl w90"></div><div class="gl w90"></div><div class="gl w60" style="margin-bottom:0"></div></div>
+            <div class="etext"></div>
+          </div>
+
+          <!-- ps (AI · shared) -->
+          <div class="eb mod" data-key="ps" data-mod="ps">
+            <div class="ghost"><div class="gl w75" style="margin-bottom:0"></div></div>
+            <div class="etext"></div>
+          </div>
+
+          <!-- footer: REAL, compliance locked -->
+          <div class="foot" id="modFoot">
+            Thanks for shopping at BraGoddess<br>
+            Want exclusive deals &amp; comfort tips? We'd love to keep in touch.<br>
+            <a href="#" onclick="return false">BraGoddess.com</a> · 1851 Central Park Loop, Morrow, GA 30260<br>
+            © 2026 | <a href="#" onclick="return false">Privacy Policy</a> | <a href="#" onclick="return false">Exchanges &amp; Returns</a> | <a class="unsub" href="{{unsubscribe}}" onclick="return false" title="Merge tag {{unsubscribe}} — SendGrid injects the real link at send time">Unsubscribe</a><br>
+            <span class="tagchip">{{unsubscribe}}</span> <span style="opacity:.7">← preserved on export · replaced by SendGrid at send time</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="expwrap">
+      <button class="btn-push" id="btnPush" disabled title="Generate first">Create Template_ID →</button>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- ============ TAB 2 ============ -->
+<div class="tabpage" id="tab-template">
+  <div class="uc">
+    <div class="icn">🚧</div>
+    <h3>Template_ID Create</h3>
+    <p>Under construction — owned by another module. When you finish an email in <b>step 1</b>, its template_id is created here automatically, replacing today's manual SendGrid step.</p>
+    <div class="tpllist"><b>template_id created this session</b><div id="ucTpl"><div class="none">Nothing yet — finish an email in step 1 ("Create Template_ID").</div></div></div>
+  </div>
+</div>
+
+<!-- ============ TAB 3 ============ -->
+<div class="tabpage" id="tab-send">
+  <div class="uc">
+    <div class="icn">🚧</div>
+    <h3>Auto Send</h3>
+    <p>Under construction — owned by another module. Scheduling &amp; the daily 7PM trigger will read the template_id from step 2 automatically, replacing today's Google Sheet.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileIn" accept="image/*" style="display:none">
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const toast=(m)=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._);t._=setTimeout(()=>t.classList.remove('on'),2400)};
+
+  /* =====================================================
+     STATE MACHINE
+     S0 empty → S2 generating → S3 ready (per-segment done)
+     ===================================================== */
+  let appState='empty';                       // 'empty' | 'gen' | 'ready'
+  const SEGS=[{code:'21',label:'Bra'},{code:'22',label:'Pants'},{code:'8',label:'Panties'}];
+  const segState={'21':'idle','22':'idle','8':'idle'};   // idle | busy | done | retry
+  const sharedFilled={};                      // headline/iknow/offer/ps
+  let curSeg='21';
+  const pushed={};                            // seg -> template_id
+  let genTimers=[];
+
+  /* ---- big step tabs ---- */
+  function renderUcTpl(){
+    const box=$('#ucTpl'); const ids=Object.entries(pushed);
+    box.innerHTML=ids.length?ids.map(([sg,id])=>'<div class="tplrow"><span>Segment '+sg+'</span><code>'+id+'</code></div>').join(''):'<div class="none">Nothing yet — finish an email in step 1 ("Create Template_ID").</div>';
+  }
+  function gotoTab(name){
+    $$('.t3').forEach(x=>x.classList.toggle('on',x.dataset.tab===name));
+    $$('.tabpage').forEach(p=>p.classList.remove('on'));
+    $('#tab-'+name).classList.add('on');
+    if(name==='template') renderUcTpl();
+  }
+  $$('.t3').forEach(b=>b.addEventListener('click',()=>gotoTab(b.dataset.tab)));
+
+  /* ---- accordion ---- */
+  $$('[data-acc]').forEach(acc=>{acc.querySelector('.acc-head').addEventListener('click',()=>acc.classList.toggle('open'));});
+
+  /* ---- brand -> accent + summaries (S1 live reflection) ---- */
+  const selBrand=$('#selBrand'), selTheme=$('#selTheme'), selPromo=$('#selPromo'), inpVal=$('#inpVal'), selShip=$('#selShip');
+  function refresh(){
+    const o=selBrand.options[selBrand.selectedIndex];
+    document.documentElement.style.setProperty('--accent',o.dataset.accent);
+    $('#logo').textContent=selBrand.value[0];
+    $('#inAvatar').textContent=selBrand.value[0];
+    $('#inSender').textContent=selBrand.value;
+    $('#sum1').textContent=selBrand.value+' · '+selTheme.value;
+    const ship=selShip.value==='None'?'no free ship':(selShip.value==='All orders'?'free ship all':'free ship '+selShip.value.replace('Orders ',''));
+    $('#sum2').textContent=inpVal.value+' off · '+ship;
+  }
+  [selBrand,selTheme,selPromo,inpVal,selShip].forEach(el=>el.addEventListener('change',refresh));
+  inpVal.addEventListener('input',refresh); refresh();
+
+  /* =====================================================
+     CONTENT — shared (foundation) vs per-segment (patches)
+     ===================================================== */
+  const SHARED_DEFAULT={
+    headline:`<p><span class="accent">July heat shouldn't mean</span><br><span class="accent">suffering through your bra.</span><br><span class="accent">75% o.f.f</span> ends midnight tonight.</p><p>Front-close comfort. Moisture-wicking cotton.<br>Free Shipping on orders 💲35+<br>Daisy Bra · Posy Bra · ZoeShape — all included.</p><p><strong>Free Shipping 💲35+ · Easy Returns</strong></p><p class="accent">⏰ Offer ends midnight tonight — 24 hrs only</p><p class="rev">4.9/5 RATING · 2,400+ REVIEWS</p><p class="rev">"Forgot it's there!" — Helen R.</p>`,
+    iknow:`<p>I know that feeling now. Front-button, moisture-wicking cotton, a U-back that actually stays put — it's the bra I reach for every single morning without thinking twice.</p>`,
+    offer:`<p>Right now the <span class="accent">Daisy Bra</span> is <strong>75% o.f.f</strong>, and the <span class="accent">Posy Bra</span> and <span class="accent">ZoeShape</span> are included too. Free shipping lands on orders of 💲35 or more.</p><p>Midnight tonight is when this closes — not to pressure you, just so you have the full picture.</p>`,
+    ps:`<p>P.S. The Daisy Bra in Soft Rose sells out fastest — midnight is closer than it feels.</p>`
+  };
+  const SEG_DEFAULT={
+    subject:{
+      '21':`<div class="s-subj">Your summer bra upgrade — 75% o.f.f ends tonight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, front-close comfort. Midnight is the cut-off.</div>`,
+      '22':`<div class="s-subj">The soft-waist pants of summer — 75% o.f.f today</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, breathable linen-soft comfort ends at midnight.</div>`,
+      '8': `<div class="s-subj">Featherlight cotton comfort — 75% o.f.f tonight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, the cotton sets always sell out first.</div>`
+    },
+    story:{
+      '21':`<p>By mid-July I stop pretending a heavy bra is fine by 10 a.m.</p><p>My neighbor Ruth said the same thing last summer — she'd been living with shoulder marks by noon until she tried the <span class="accent">Daisy Bra</span> and told me she <span class="accent">forgot she had it on</span> within the first hour.</p>`,
+      '22':`<p>Last July my sister finally gave up on jeans — by lunch she was counting the hours.</p><p>She switched to our <span class="accent">soft-waist pants</span> and hasn't looked back: linen-soft waistband, zero digging, and she says she <span class="accent">forgets she's wearing them</span> by mid-morning.</p>`,
+      '8': `<p>Summer heat has a way of making the wrong pair impossible to ignore by noon.</p><p>The <span class="accent">cotton comfort set</span> changed that for me — breathable, tag-free, and so light I <span class="accent">stopped thinking about them</span> entirely.</p>`
+    }
+  };
+  const POOLS={
+    headline:[
+      `<p><span class="accent">This summer, your bra should disappear —</span><br><span class="accent">not dig in.</span><br><span class="accent">75% o.f.f</span> today only.</p><p>Front-close cotton that breathes.<br>Free Shipping 💲35+ · Daisy · Posy · ZoeShape</p><p class="rev">4.9/5 · 2,400+ reviews</p>`,
+      `<p><span class="accent">Comfort that lasts all day —</span><br><span class="accent">not gone by dinner.</span><br><span class="accent">75% o.f.f</span> ends tonight.</p><p>Moisture-wicking, front-button ease.<br>Free Shipping 💲35+ · Easy Returns</p><p class="rev">"Forgot it's there!" — Helen R.</p>`
+    ],
+    iknow:[
+      `<p>Now I get it. Front-button on, U-back that stays, cotton that breathes — it's the one I grab first, half-asleep, every morning.</p>`,
+      `<p>These days it's the only bra in the drawer I actually reach for. No wires, no digging, no clock-watching — just soft cotton and a back that stays put.</p>`
+    ],
+    offer:[
+      `<p>Today the <span class="accent">Daisy Bra</span> is <strong>75% o.f.f</strong> — and the <span class="accent">Posy Bra</span> and <span class="accent">ZoeShape</span> come along too. Orders over 💲35 ship free.</p><p>This closes at midnight; sharing so you don't miss it.</p>`,
+      `<p>The whole trio — <span class="accent">Daisy</span>, <span class="accent">Posy</span>, <span class="accent">ZoeShape</span> — is in the 75% o.f.f offer right now, with free shipping over 💲35. Midnight tonight is the cut-off.</p>`
+    ],
+    ps:[
+      `<p>P.S. Soft Rose is the first color to sell out every time — don't wait until midnight.</p>`,
+      `<p>P.S. If you've been on the fence, this is the lowest it goes. Midnight, then it's gone.</p>`
+    ]
+  };
+  const POOLS_SEG={
+    subject:{
+      '21':[`<div class="s-subj">The bra you'll forget you're wearing — 75% o.f.f</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, moisture-wicking cotton, front-close ease.</div>`,
+            `<div class="s-subj">Comfort that outlasts July — 75% o.f.f midnight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, Daisy · Posy · ZoeShape all included tonight.</div>`],
+      '22':[`<div class="s-subj">Soft-waist season starts now — 75% o.f.f tonight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, the pants everyone asks about are included.</div>`,
+            `<div class="s-subj">Goodbye stiff jeans — 75% o.f.f ends midnight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, linen-soft comfort with zero digging.</div>`],
+      '8': [`<div class="s-subj">The cotton set that sells out first — 75% o.f.f</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, featherlight, tag-free, midnight cut-off.</div>`,
+            `<div class="s-subj">Barely-there comfort — 75% o.f.f until midnight</div><div class="s-pre"><span class="tagchip">{{first_name}}</span>, breathable cotton where it matters most.</div>`]
+    },
+    story:{
+      '21':[`<p>Every July it's the same — by 10 a.m. the straps dig in and I'm counting hours till I can take it off. Then a friend handed me the <span class="accent">Daisy Bra</span>. First morning, I genuinely forgot I was wearing it.</p>`,
+            `<p>I used to think a little discomfort was just part of wearing a bra in summer. The <span class="accent">Daisy Bra</span> proved me wrong — front-close, soft cotton, and not a single shoulder mark by noon.</p>`],
+      '22':[`<p>My rule used to be: nice pants, uncomfortable day. These <span class="accent">soft-waist pants</span> broke it — airy fabric, a waistband that moves with you, and pockets that actually hold things.</p>`,
+            `<p>Three summers of stiff waistbands ended the week I tried the <span class="accent">soft-waist pants</span> — my sister now owns them in every color.</p>`],
+      '8': [`<p>Nobody talks about it, but the wrong pair ruins a summer day fast. The <span class="accent">cotton comfort set</span> is the opposite — breathable, tag-free, invisible under anything.</p>`,
+            `<p>I bought one set to try. Two weeks later I replaced the whole drawer — <span class="accent">featherlight cotton</span> that stays put and stays cool.</p>`]
+    }
+  };
+
+  /* ---- version state ---- */
+  const stateShared={}, stateSeg={};
+  function segStateObj(seg,key){stateSeg[seg]=stateSeg[seg]||{};if(!stateSeg[seg][key])stateSeg[seg][key]={versions:[SEG_DEFAULT[key][seg]],idx:0};return stateSeg[seg][key];}
+  function S(key,perSeg){ if(!perSeg){ if(!stateShared[key]) stateShared[key]={versions:[SHARED_DEFAULT[key]],idx:0}; return stateShared[key]; } return segStateObj(curSeg,key); }
+  function segPush(seg,key){const s=segStateObj(seg,key);const pool=(POOLS_SEG[key]||{})[seg]||[];if(pool.length){const nv=pool[(s.versions.length-1)%pool.length];s.versions=s.versions.slice(0,s.idx+1);s.versions.push(nv);s.idx=s.versions.length-1;}}
+  function sharedPush(key){const s=S(key,false);const pool=POOLS[key]||[];if(pool.length){const nv=pool[(s.versions.length-1)%pool.length];s.versions=s.versions.slice(0,s.idx+1);s.versions.push(nv);s.idx=s.versions.length-1;}}
+
+  /* ---- block registry ---- */
+  const blocks=[];
+  $$('.eb').forEach(eb=>{
+    const key=eb.dataset.key, perSeg=eb.hasAttribute('data-seg'), et=eb.querySelector('.etext'), ghost=eb.querySelector('.ghost');
+    const tb=document.createElement('div'); tb.className='blk-tools';
+    tb.innerHTML=`<span class="scope ${perSeg?'seg':'all'}" title="${perSeg?'Regenerate affects THIS segment only':'Shared block — regenerate affects ALL segments'}">${perSeg?'SEG':'ALL'}</span>
+      <button title="Edit text" data-a="edit">✏️</button><span class="sep"></span>
+      <button title="Previous version" data-a="prev">‹</button><span class="ver">–</span><button title="Next version" data-a="next">›</button>
+      <span class="sep"></span><button title="Regenerate with AI (${perSeg?'this segment':'all segments'})" data-a="regen">🔄</button>`;
+    eb.appendChild(tb);
+    const ver=tb.querySelector('.ver');
+    const isReady=()=> perSeg ? segState[curSeg]==='done' : !!sharedFilled[key];
+    const render=()=>{
+      if(!isReady()){ eb.classList.remove('filled'); ver.textContent='–'; return; }
+      const s=S(key,perSeg);
+      et.innerHTML=s.versions[s.idx]; eb.classList.add('filled');
+      ver.textContent=(s.idx+1)+'/'+s.versions.length;
+      et.classList.add('regen-pulse'); setTimeout(()=>et.classList.remove('regen-pulse'),450);
+    };
+    blocks.push({key,perSeg,eb,ghost,render});
+    tb.addEventListener('click',e=>{
+      const a=e.target.closest('button'); if(!a||!isReady())return; const s=S(key,perSeg);
+      if(a.dataset.a==='edit'){
+        et.setAttribute('contenteditable','true');et.focus();toast('Editing — click outside to save');
+        et.addEventListener('blur',function h(){
+          et.setAttribute('contenteditable','false');
+          const html=et.innerHTML.trim(); const s2=S(key,perSeg);
+          if(html!==s2.versions[s2.idx]){s2.versions=s2.versions.slice(0,s2.idx+1);s2.versions.push(html);s2.idx=s2.versions.length-1;ver.textContent=(s2.idx+1)+'/'+s2.versions.length;toast('New version saved'+(perSeg?' (segment '+curSeg+')':''));savedTick();}
+          et.removeEventListener('blur',h);
+        });
+      }
+      if(a.dataset.a==='regen'){
+        if(perSeg){segPush(curSeg,key);toast('AI regenerated — segment '+curSeg+' only');}
+        else{sharedPush(key);toast('AI regenerated — applied to ALL segments');}
+        render(); savedTick();
+      }
+      if(a.dataset.a==='prev'){if(s.idx>0){s.idx--;render();savedTick();}}
+      if(a.dataset.a==='next'){if(s.idx<s.versions.length-1){s.idx++;render();savedTick();}}
+    });
+  });
+  const renderPerSeg=()=>blocks.filter(b=>b.perSeg).forEach(b=>b.render());
+  const renderKey=k=>{const b=blocks.find(x=>x.key===k);if(b)b.render();};
+
+  /* ---- segment tabs ---- */
+  const segbar=$('#segbar');
+  function drawTabs(){
+    segbar.querySelectorAll('.segtab').forEach(n=>n.remove());
+    const anchor=$('#qchip');
+    SEGS.forEach(sg=>{
+      const st=segState[sg.code];
+      const b=document.createElement('button');
+      b.className='segtab'+(sg.code===curSeg?' on':'')+(st==='idle'?' dim':'');
+      let label=sg.code+' · '+sg.label;
+      if(st==='busy')label+=' ⏳'; if(st==='retry')label+=' ↻'; if(pushed[sg.code])label+=' <span class="tick">✓</span>';
+      b.innerHTML=label;
+      b.title=st==='idle'?'Not generated yet':st==='busy'?'Generating…':st==='retry'?'Cancelled — click to retry':(pushed[sg.code]?('template_id: '+pushed[sg.code]):'Generated · template_id not created yet');
+      b.addEventListener('click',()=>{
+        if(st==='retry'){retrySeg(sg.code);return;}
+        if(st==='idle'){toast('Not generated yet — hit ⚡ Generate Email');return;}
+        curSeg=sg.code; drawTabs(); renderPerSeg(); updateHandoff();
+      });
+      segbar.insertBefore(b,anchor);
+    });
+  }
+  drawTabs();
+
+  /* =====================================================
+     GENERATION ENGINE (mock of foundation → segment patches)
+     ===================================================== */
+  const btnGen=$('#btnGen'), btnCancel=$('#btnCancel');
+  function doneCount(){return SEGS.filter(s=>segState[s.code]==='done').length;}
+  function updateGenBtn(){
+    if(appState==='gen'){btnGen.disabled=true;btnGen.textContent='⏳ Generating… '+doneCount()+'/'+SEGS.length+' segments';}
+    else if(doneCount()===SEGS.length){btnGen.disabled=false;btnGen.textContent='↻ Regenerate All';}
+    else if(doneCount()>0){btnGen.disabled=false;btnGen.textContent='⚡ Generate remaining segments';}
+    else{btnGen.disabled=false;btnGen.textContent='⚡ Generate Email';}
+  }
+  function updateHandoff(){
+    const ok=segState[curSeg]==='done';
+    $('#btnExp').disabled=!ok; $('#btnPush').disabled=!ok;
+    $('#btnExp').title=ok?'':'Generate this segment first';
+    $('#btnPush').title=ok?'':'Generate this segment first';
+  }
+  function setHint(mode){
+    $('#pvHint').innerHTML= mode==='ready'
+      ? 'Hover an <b>image</b> to swap it · hover <b>text</b> to edit / <b>regenerate with AI</b> (versioned · <b>SEG</b>=this segment, <b>ALL</b>=every segment) · merge tags preserved'
+      : mode==='gen' ? '<b>Generating…</b> foundation first, then one patch per segment — finished blocks unlock immediately'
+      : 'Skeleton preview — <b>brand assets are real</b> (config) · <b>gray blocks are AI-owned</b>, they fill on Generate';
+  }
+  function savedTick(){
+    if(appState!=='ready')return;
+    const el=$('#savedInd'); el.hidden=false; el.textContent='Saving…';
+    clearTimeout(el._); el._=setTimeout(()=>el.textContent='Saved · just now',600);
+  }
+  function fillProducts(){
+    $('#heroCard').classList.add('filled');
+    $('#tiles').classList.add('filled');
+  }
+  function shimmer(key,on){
+    const b=blocks.find(x=>x.key===key&&!x.perSeg); if(b&&b.ghost)b.ghost.classList.toggle('filling',on);
+  }
+  function segShimmer(on){ blocks.filter(b=>b.perSeg).forEach(b=>{if(b.ghost)b.ghost.classList.toggle('filling',on&&segState[curSeg]!=='done');}); }
+
+  function runGeneration(regenAll){
+    if(appState==='gen')return;
+    appState='gen'; genTimers=[];
+    $('#emptyOvl').classList.add('off');
+    $('#layBtn').disabled=true; $('#layPanel').classList.remove('on'); $('#layBtn').classList.remove('on');
+    btnCancel.classList.add('show'); setHint('gen'); updateGenBtn();
+
+    /* 1 · products: instant (catalog data, no AI) */
+    if(!$('#heroCard').classList.contains('filled')){ fillProducts(); toast('Products loaded from catalog — name, price & USPs auto-filled'); }
+
+    /* 2 · foundation: shared blocks stream in order */
+    let t=500;
+    ['headline','iknow','offer','ps'].forEach(k=>{
+      if(sharedFilled[k]&&!regenAll)return;
+      genTimers.push(setTimeout(()=>shimmer(k,true),t));
+      genTimers.push(setTimeout(()=>{shimmer(k,false);if(regenAll&&sharedFilled[k])sharedPush(k);sharedFilled[k]=true;renderKey(k);},t+430));
+      t+=560;
+    });
+
+    /* 3 · segment patches: one after another */
+    const targets=SEGS.map(s=>s.code).filter(c=>regenAll||segState[c]!=='done');
+    targets.forEach((c,i)=>{
+      genTimers.push(setTimeout(()=>{segState[c]='busy';drawTabs();updateGenBtn();if(c===curSeg)segShimmer(true);},t+i*950));
+      genTimers.push(setTimeout(()=>{
+        if(regenAll&&stateSeg[c]){segPush(c,'subject');segPush(c,'story');}
+        segState[c]='done'; drawTabs(); updateGenBtn(); updateHandoff();
+        if(c===curSeg){segShimmer(false);renderPerSeg();}
+      },t+i*950+820));
+    });
+    genTimers.push(setTimeout(finishGen,t+targets.length*950+300));
+  }
+  function finishGen(){
+    appState='ready'; btnCancel.classList.remove('show'); $('#layBtn').disabled=false;
+    updateGenBtn(); updateHandoff(); setHint('ready');
+    $('#qchip').classList.add('show');
+    const el=$('#savedInd'); el.hidden=false; el.textContent='Saved · just now';
+    toast('Draft ready — '+doneCount()+'/'+SEGS.length+' segments · Score 86');
+  }
+  btnGen.addEventListener('click',()=>runGeneration(doneCount()===SEGS.length));
+  btnCancel.addEventListener('click',()=>{
+    genTimers.forEach(clearTimeout); genTimers=[];
+    SEGS.forEach(s=>{if(segState[s.code]==='busy'||segState[s.code]==='idle')segState[s.code]= segState[s.code]==='busy'?'retry':(doneCount()>0?'retry':'idle');});
+    ['headline','iknow','offer','ps'].forEach(k=>shimmer(k,false)); segShimmer(false);
+    appState = 'ready';
+    btnCancel.classList.remove('show'); $('#layBtn').disabled=false;
+    drawTabs(); updateGenBtn(); updateHandoff(); setHint(doneCount()?'ready':'empty');
+    if(doneCount()){$('#qchip').classList.add('show');}
+    toast('Cancelled — kept '+doneCount()+'/'+SEGS.length+' segments (click ↻ on a tab to retry)');
+  });
+  function retrySeg(code){
+    segState[code]='busy'; drawTabs(); toast('Retrying segment '+code+'…');
+    setTimeout(()=>{segState[code]='done';drawTabs();updateGenBtn();updateHandoff();if(code===curSeg)renderPerSeg();toast('Segment '+code+' ready');},900);
+  }
+
+  /* ---- quality chip ---- */
+  $('#qchip').addEventListener('click',()=>toast('⚠ seg 8 subject: 61 chars (cap 60) · ⚠ Bloom Bra image missing — fix before Create Template_ID'));
+
+  /* ---- empty-state: template entry ---- */
+  $('#tplBtn').addEventListener('click',()=>toast('Template library — under construction (sub-feature 2.1)'));
+
+  /* =====================================================
+     LAYOUT OPTIONS
+     ===================================================== */
+  let prodLayout='hero', bodyFlow='custom';
+  const PL_LABEL={stack:'Stacked · 1×3',two:'2 per row',three:'3 per row',hero:'Hero + 2 per row'};
+  const FLOW_LABEL={continuous:'Continuous body',opener:'Opener + products',custom:'Custom flow'};
+  const laySum=()=>{$('#laySum').textContent='· '+PL_LABEL[prodLayout]+' · '+FLOW_LABEL[bodyFlow];};
+  $('#layBtn').addEventListener('click',()=>{if($('#layBtn').disabled)return;$('#layBtn').classList.toggle('on');$('#layPanel').classList.toggle('on');});
+  $('#prodLayouts').addEventListener('click',e=>{
+    const c=e.target.closest('.lopt'); if(!c)return;
+    $$('#prodLayouts .lopt').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+    prodLayout=c.dataset.l;
+    $('#tiles').className='tiles mod l-'+prodLayout+($('#tiles').classList.contains('filled')?' filled':'');
+    laySum(); toast('Product layout: '+PL_LABEL[prodLayout]); savedTick();
+  });
+  const emailEl=$('#email'), footEl=$('#modFoot');
+  const mod=k=>emailEl.querySelector('[data-mod="'+k+'"]');
+  const ORDERS={continuous:['headline','story','iknow','offer','ps','hero','tiles'],opener:['headline','story','hero','tiles','iknow','offer','ps']};
+  function setDrag(on){emailEl.classList.toggle('dragmode',on);$$('#email .mod').forEach(m=>m.draggable=on);}
+  $('#bodyFlows').addEventListener('click',e=>{
+    const c=e.target.closest('.fopt'); if(!c)return;
+    $$('#bodyFlows .fopt').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+    bodyFlow=c.dataset.f;
+    if(ORDERS[bodyFlow]){ORDERS[bodyFlow].forEach(k=>emailEl.insertBefore(mod(k),footEl)); setDrag(false); toast('Body placement: '+FLOW_LABEL[bodyFlow]);}
+    else{setDrag(true); toast('Custom flow — drag modules in the preview to reorder (banner & footer locked)');}
+    laySum(); savedTick();
+  });
+  $('#subjStyles').addEventListener('click',e=>{
+    const c=e.target.closest('.schip'); if(!c)return;
+    if(segState[curSeg]!=='done'){toast('Generate first — subject styles apply to generated segments');return;}
+    $$('#subjStyles .schip').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+    const k=+c.dataset.s;
+    const html=k===0?SEG_DEFAULT.subject[curSeg]:POOLS_SEG.subject[curSeg][k-1];
+    const s=S('subject',true); s.versions=s.versions.slice(0,s.idx+1); s.versions.push(html); s.idx=s.versions.length-1;
+    blocks.find(b=>b.key==='subject').render();
+    toast('Subject style '+(k+1)+' applied (segment '+curSeg+')'); savedTick();
+  });
+
+  /* drag & drop (Custom flow) */
+  let dragging=null;
+  emailEl.addEventListener('dragstart',e=>{
+    const m=e.target.closest('.mod'); if(!m||!emailEl.classList.contains('dragmode'))return;
+    dragging=m; e.dataTransfer.effectAllowed='move'; setTimeout(()=>m.classList.add('ghosted'),0);
+  });
+  emailEl.addEventListener('dragend',()=>{if(dragging){dragging.classList.remove('ghosted');dragging=null;toast('Modules reordered');savedTick();}});
+  emailEl.addEventListener('dragover',e=>{
+    if(!dragging)return; e.preventDefault();
+    const m=e.target.closest('.mod'); if(!m||m===dragging)return;
+    const r=m.getBoundingClientRect(); const before=(e.clientY-r.top)<r.height/2;
+    m.parentNode.insertBefore(dragging,before?m:m.nextSibling);
+  });
+  $$('#email img, #email a.eimg').forEach(n=>n.draggable=false);
+  setDrag(true);
+
+  /* ---- product catalog ---- */
+  const CATALOG=[
+    {name:'ZoeShape', usp:'Lift & side-smoothing full-coverage support', price:'💲24.99', old:'💲99.99', slug:'zoeshape', img:'https://cdn.selless.us/p/58vtgd039w6bbhw06s3ygs86/i/1s3jkf677jab90iyy0hgad0f4.jpg'},
+    {name:'Daisy Bra', usp:'Front-close · moisture-wicking cotton · sizes 28–58', price:'💲19.99', old:'💲79.99', slug:'daisybra', img:'https://cdn.selless.us/p/1an7lbxk5t7eebkhhdiuub21k/i/24vpgdaewpar9upzp2w2okg4z.webp'},
+    {name:'Posy Bra', usp:'Full coverage · U-back stays put · A–G cup', price:'💲22.99', old:'💲89.99', slug:'posybra', img:'https://cdn.selless.us/p/1an7lbxk5t7eebkhhdiuub21k/i/24vpgdaewpar9upzp2w2okg4z.webp'}
+  ];
+  let pidx=0;
+  function renderP(){
+    const p=CATALOG[pidx];
+    $('#pImg').src=p.img; $('#pImg').alt=p.name;
+    $('#pName').textContent=p.name; $('#pUsp').textContent=p.usp;
+    $('#pPrice').textContent=p.price; $('#pOld').textContent=p.old;
+    $('#pCta').href='https://bragoddess.com/'+p.slug+'?{{paramurl}}';
+  }
+
+  /* ---- images ---- */
+  let curImg=null;
+  const fileIn=$('#fileIn');
+  fileIn.addEventListener('change',()=>{const f=fileIn.files[0];if(f&&curImg){curImg.src=URL.createObjectURL(f);toast('Image updated');savedTick();}fileIn.value='';});
+  $$('.eimg').forEach(w=>{
+    const img=w.querySelector('img');
+    w.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{
+      e.preventDefault();
+      if(b.dataset.act==='link'){const u=prompt('Paste new image URL:',img.src);if(u){img.src=u.trim();toast('Image updated');savedTick();}}
+      else if(b.dataset.act==='swap'){pidx=(pidx+1)%CATALOG.length;renderP();toast('Product swapped: '+CATALOG[pidx].name+' — price/USP auto-filled from catalog');savedTick();}
+      else{curImg=img;fileIn.click();}
+    }));
+  });
+
+  /* ---- width / dark ---- */
+  $('#segWidth').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$$('#segWidth button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#pvcol').classList.toggle('mobile',b.dataset.w==='mobile');});
+  $('#swDark').addEventListener('click',()=>{$('#swDark').classList.toggle('on');$('#canvas').classList.toggle('dark');});
+
+  /* ---- handoff: create template_id → auto-jump to step 2 ---- */
+  const btnPush=$('#btnPush');
+  btnPush.addEventListener('click',()=>{
+    if(btnPush.disabled)return;
+    btnPush.disabled=true; const old=btnPush.innerHTML; btnPush.innerHTML='⏳ Creating template_id…';
+    setTimeout(()=>{
+      const id='d-'+Math.random().toString(36).slice(2,10);
+      pushed[curSeg]=id; drawTabs();
+      btnPush.disabled=false; btnPush.innerHTML=old; updateHandoff();
+      gotoTab('template');
+      toast('✓ Segment '+curSeg+' HTML done → template_id '+id+' created');
+    },1300);
+  });
+
+  /* ---- export HTML ---- */
+  $('#btnExp').addEventListener('click',()=>{
+    if($('#btnExp').disabled)return;
+    const clone=$('#email').cloneNode(true);
+    clone.querySelectorAll('.blk-tools,.eimg-ovl,.ptag,.ghost,.pghost').forEach(n=>n.remove());
+    clone.querySelectorAll('[contenteditable]').forEach(n=>n.removeAttribute('contenteditable'));
+    clone.querySelectorAll('.eb,.eimg').forEach(n=>{n.classList.remove('eb','eimg','center');n.style.outline='';});
+    const subj=($('.s-subj')||{}).textContent||'', pre=($('.s-pre')||{}).textContent||'';
+    const head='<!--\n  Segment: '+curSeg+'\n  Subject: '+subj+'\n  Preheader: '+pre+'\n  Merge tags ({{first_name}}, {{paramurl}}, {{unsubscribe}}) preserved — replaced by SendGrid at send time.\n-->\n';
+    const html='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:arial,sans-serif;margin:0}.accent{color:'+getComputedStyle(document.documentElement).getPropertyValue('--accent')+';font-weight:700}.rev{font-style:italic}img{width:100%;display:block}.tiles{display:flex;gap:12px;flex-wrap:wrap}.tiles .tile{flex:1}.foot{padding:16px;text-align:center;color:#8a8f9c;font-size:11px}.etext{padding:6px 10px}.pinfo{text-align:center;padding:12px}.pcta{display:inline-block;background:'+getComputedStyle(document.documentElement).getPropertyValue('--accent')+';color:#fff;padding:10px 30px;border-radius:8px;font-weight:800;text-decoration:none}.tagchip{font-family:monospace}</style></head><body>'+head+'<div style="max-width:600px;margin:0 auto">'+clone.innerHTML+'</div></body></html>';
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));a.download='email_seg'+curSeg+'.html';a.click();
+    toast('HTML exported (segment '+curSeg+')');
+  });
+
+  /* ---- init S0 ---- */
+  blocks.forEach(b=>b.render());
+  renderP(); laySum(); updateGenBtn(); updateHandoff();
+})();
+</script>
+</body>
+</html>
