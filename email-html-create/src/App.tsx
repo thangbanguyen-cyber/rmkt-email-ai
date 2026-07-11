@@ -140,6 +140,7 @@ export default function App() {
   const [accOpen, setAccOpen] = useState([true, true, true, true]);
   const [saved, setSaved] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState('');
+  const [pushing, setPushing] = useState(false);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const savedT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -262,7 +263,7 @@ export default function App() {
     toast('🎨 Design brief exported — ' + codes.length + ' tệp · ' + codes.length * 6 + ' images');
   }
   function currentSubjectText() { const m = segContent('subject').match(/s-subj">([^<]*)/); return m ? m[1] : ''; }
-  function exportHTML() {
+  function buildEmailHtml() {
     const tileHtml = tiles.map((t) => `<div style="flex:1 1 calc(50% - 6px)"><img src="${t.src}" style="width:100%;display:block"><div style="text-align:center;font-weight:700;padding-top:6px">${t.name}</div><div style="text-align:center;color:${D.accent};font-weight:800">${t.price}</div></div>`).join('');
     const body = `<img src="${bannerSrc}" style="width:100%;display:block">
       <div style="padding:6px 10px;text-align:center">${sharedContent('headline')}</div>
@@ -273,15 +274,42 @@ export default function App() {
       <div style="padding:6px 10px">${sharedContent('ps')}</div>
       <div style="padding:16px;text-align:center;color:#8a8f9c;font-size:11px">Unsubscribe: {{unsubscribe}}</div>`;
     const head = `<!--\n  Domain: ${domainName}\n  Tệp: ${curSeg} · ${seg(curSeg).name}\n  Subject: ${currentSubjectText()}\n  Merge tags preserved — replaced by SendGrid at send time.\n-->\n`;
-    download(`email_${domainName}_${curSeg}.html`,
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><style>.accent{color:${D.accent};font-weight:700}.rev{font-style:italic}.tagchip{font-family:monospace}p{margin:0 0 8px}</style></head><body>${head}<div style="max-width:600px;margin:0 auto;font-family:arial,sans-serif">${body}</div></body></html>`);
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>.accent{color:${D.accent};font-weight:700}.rev{font-style:italic}.tagchip{font-family:monospace}p{margin:0 0 8px}</style></head><body>${head}<div style="max-width:600px;margin:0 auto;font-family:arial,sans-serif">${body}</div></body></html>`;
+  }
+  function exportHTML() {
+    download(`email_${domainName}_${curSeg}.html`, buildEmailHtml());
     toast('HTML exported (' + domainName + ' · ' + curSeg + ')');
   }
 
-  // SEAM #1 — Part 2 (Template_ID) is another dev; button stays on screen 1.
-  function createTemplateId() {
-    if (segState[curSeg] !== 'done') return;
-    toast('✓ ' + curSeg + ' handed off to Template_ID Create (Part 2 — built by another module)');
+  // SEAM #1 — Part 2: create a SendGrid Dynamic Template + auto-log to the tracking
+  // sheet. Backend: /api/create-template (Vercel serverless, same repo). Same-origin
+  // on the Vercel deploy; set VITE_API_BASE to the Vercel URL for GitHub Pages builds.
+  async function createTemplateId() {
+    if (segState[curSeg] !== 'done' || pushing) return;
+    setPushing(true);
+    toast('Creating SendGrid template… (' + curSeg + ')');
+    try {
+      const base = (import.meta.env.VITE_API_BASE as string | undefined) || '';
+      const res = await fetch(base + '/api/create-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${domainName} · ${curSeg} · ${sendDate} · ${theme}`,
+          subject: currentSubjectText(),
+          html: buildEmailHtml(),
+          segment: curSeg,
+          domain: domainName,
+          sendDate,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { templateId?: string; sheetLogged?: boolean; error?: string };
+      if (!res.ok || !data.templateId) throw new Error(data.error || 'HTTP ' + res.status);
+      toast('✓ Template ' + data.templateId + ' created' + (data.sheetLogged ? ' · sheet row added' : ' · sheet log FAILED'));
+    } catch (err) {
+      toast('✗ Template create failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+    } finally {
+      setPushing(false);
+    }
   }
 
   const themeRec = recommendTheme(sendDate);
@@ -494,7 +522,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="expwrap"><button className="btn-push" disabled={!canHandoff} title={canHandoff ? '' : 'Generate first'} onClick={createTemplateId}>Create Template_ID →</button></div>
+            <div className="expwrap"><button className="btn-push" disabled={!canHandoff || pushing} title={canHandoff ? '' : 'Generate first'} onClick={createTemplateId}>{pushing ? 'Creating…' : 'Create Template_ID →'}</button></div>
           </main>
         </div>
       </div>
