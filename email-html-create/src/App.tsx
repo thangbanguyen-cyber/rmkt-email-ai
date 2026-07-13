@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type DragEvent } from 'react';
 import { DOMAINS, DOMAIN_NAMES, type Domain, type Segment } from './data/segments';
-import { generateContent, type BlockKey } from './lib/content';
+import { generateContent, productCopy, type BlockKey } from './lib/content';
 import { recommendTheme, THEME_OPTIONS } from './lib/occasions';
 
 /* ========================================================================
@@ -19,6 +19,15 @@ const SHARED_KEYS: BlockKey[] = ['headline', 'iknow', 'offer', 'ps'];
 function sanitize(html: string): string {
   return html.replace(/<\/?(script|style)[^>]*>/gi, '').replace(/ on\w+="[^"]*"/gi, '');
 }
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+// Demo design-brief text pre-filled for image 1 (P1) and image 4 (P4), derived
+// from the real "BraGoddess Email Content.xlsx" product copy.
+const BRIEF_PREFILL: Record<string, string> = {
+  p0: 'Hero product shot for the July Champion. Model 55–65, warm genuine smile, wearing the bra in a soft lilac shade. Add a subtle upward lift arrow. Popout badge "85% o.f.f" top-right; small tag "Sold out last week!". Pastel-pink background with gentle depth (soft petals, no hard shadows). Overlay a 5-star review: "The most comfortable bra I\'ve ever worn — a miracle for my joints." — Irene C.',
+  p3: 'Front-button "do-everything" bra worn by a relaxed senior model at home. Emphasize the easy front closure and no red marks. Popout "79% o.f.f"; tag "Loved by 50,000+ seniors". Include a small before/after (back view) inset. 5-star review: "No pinching, no red marks — comfort that lasts all day." — Clarissa C.',
+};
 function toDate(iso: string) { return new Date(iso + 'T00:00:00'); }
 function niceDate(iso: string) {
   const d = toDate(iso);
@@ -29,12 +38,19 @@ function niceDate(iso: string) {
 
 /* editable rich-text hook (avoids React/contentEditable conflicts) */
 function useEditable(content: string, onCommit: (html: string) => void) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   const [editing, setEditing] = useState(false);
-  useEffect(() => { if (ref.current && !editing) ref.current.innerHTML = content; }, [content, editing]);
+  // Callback ref: write innerHTML when the node mounts AND whenever content
+  // changes. A plain useEffect misses the mount here because the .etext node is
+  // rendered conditionally on `ready` — when it appears the content prop hasn't
+  // changed, so the effect wouldn't re-run and the block would stay blank.
+  const setRef = useCallback((node: HTMLDivElement | null) => {
+    ref.current = node;
+    if (node && !editing) node.innerHTML = content;
+  }, [content, editing]);
   const start = () => { setEditing(true); setTimeout(() => ref.current?.focus(), 0); };
   const blur = () => { setEditing(false); const html = sanitize(ref.current?.innerHTML || ''); if (html && html !== content) onCommit(html); };
-  return { ref, editing, start, blur };
+  return { ref: setRef, editing, start, blur };
 }
 
 function Tools({ perSeg, verText, onEdit, onRegen, onNav }:
@@ -128,6 +144,16 @@ export default function App() {
   const [moduleOrder, setModuleOrder] = useState<string[]>(['headline','story','tiles','iknow','offer','ps']);
   const [imgOverride, setImgOverride] = useState<Record<string, string>>({});
   const [bannerOverride, setBannerOverride] = useState<Record<string, string>>({});
+  // Products: AI recommends the 6 slots, but a marketer can swap any slot (e.g. the
+  // recommended product is sold out). `oos` = out-of-stock catalog keys (global);
+  // `slotOverride` = per-segment slot assignments once edited (default = seg.prods).
+  const [oos, setOos] = useState<string[]>([]);
+  const [slotOverride, setSlotOverride] = useState<Record<string, string[]>>({});
+  // Design-brief popup (Task 2): opens after Generate; per-image brief text keyed
+  // by 'banner' | 'p0'..'p5'. activeImg = the image whose brief panel is open.
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [activeImg, setActiveImg] = useState<string | null>(null);
+  const [briefText, setBriefText] = useState<Record<string, string>>(BRIEF_PREFILL);
   const [width, setWidth] = useState<'desktop' | 'mobile'>('desktop');
   const [dark, setDark] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -148,6 +174,29 @@ export default function App() {
   const prod = (key: string) => D.catalog[key] || { name: key, img: '', price: '' };
   const locked = phase === 'empty';
 
+  // The 6 product keys currently in a segment's slots (AI default, or the marketer's edits).
+  const slotsFor = (code: string): string[] => slotOverride[code] ?? seg(code).prods;
+  // Replacements offered for slot i: any catalog product that is in stock AND not already
+  // used in one of the OTHER 5 slots of this segment (the current slot's own product stays).
+  const availFor = (code: string, i: number): string[] => {
+    const used = new Set(slotsFor(code).filter((_, j) => j !== i));
+    return Object.keys(D.catalog).filter((k) => !oos.includes(k) && !used.has(k));
+  };
+  function swapSlot(code: string, i: number, key: string) {
+    setSlotOverride((p) => { const cur = (p[code] ?? seg(code).prods).slice(); cur[i] = key; return { ...p, [code]: cur }; });
+    toast('P' + (i + 1) + ' → ' + prod(key).name); savedTick();
+  }
+  // Mark the slot's product out of stock and auto-swap it for the first in-stock, unused product.
+  function markOOS(code: string, i: number) {
+    const cur = slotsFor(code); const dead = cur[i];
+    const used = new Set(cur.filter((_, j) => j !== i));
+    const repl = Object.keys(D.catalog).find((k) => k !== dead && !used.has(k) && !oos.includes(k));
+    setOos((p) => (p.includes(dead) ? p : [...p, dead]));
+    if (repl) setSlotOverride((p) => { const c = (p[code] ?? seg(code).prods).slice(); c[i] = repl; return { ...p, [code]: c }; });
+    toast(prod(dead).name + ' marked out of stock' + (repl ? ' → replaced with ' + prod(repl).name : ' — no in-stock replacement left')); savedTick();
+  }
+  const restoreStock = (key: string) => { setOos((p) => p.filter((k) => k !== key)); toast(prod(key).name + ' back in stock'); savedTick(); };
+
   useEffect(() => { document.documentElement.style.setProperty('--accent', D.accent); }, [D]);
 
   const toast = (m: string) => { setToastMsg(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToastMsg(''), 2600); };
@@ -155,7 +204,7 @@ export default function App() {
 
   const shipTxt = () => { if (ship === 'None') return ''; if (ship === 'All orders') return 'on all orders'; const m = ship.match(/\$(\d+)/); return m ? 'over 💲' + m[1] : 'available'; };
   const gen = (key: BlockKey, code: string, v: number) =>
-    generateContent(key, { domainName, theme, val: promoVal, ship: shipTxt(), seg: seg(code), products: seg(code).prods.map((k) => prod(k).name) }, v);
+    generateContent(key, { domainName, theme, val: promoVal, ship: shipTxt(), seg: seg(code), products: slotsFor(code).map((k) => prod(k).name) }, v);
 
   const sharedContent = (key: BlockKey) => shared[key] ? shared[key].versions[shared[key].idx] : gen(key, curSeg, 0);
   const segContent = (key: BlockKey) => { const s = perSeg[curSeg]?.[key]; return s ? s.versions[s.idx] : gen(key, curSeg, 0); };
@@ -185,14 +234,14 @@ export default function App() {
       timers.current.push(setTimeout(() => setSegState((p) => ({ ...p, [c]: 'busy' })), t + i * 600));
       timers.current.push(setTimeout(() => { setSegState((p) => ({ ...p, [c]: 'done' })); if (regenAll) { regenSeg(c, 'subject'); regenSeg(c, 'story'); } }, t + i * 600 + 540));
     });
-    timers.current.push(setTimeout(() => { setPhase('ready'); setSaved('Saved · just now'); toast('Draft ready — all ' + codes.length + ' tệp · Score 86'); }, t + tg.length * 600 + 300));
+    timers.current.push(setTimeout(() => { setPhase('ready'); setSaved('Saved · just now'); toast('Draft ready — all ' + codes.length + ' segments · Score 86'); }, t + tg.length * 600 + 300));
   }
   function cancelGeneration() {
     timers.current.forEach(clearTimeout); timers.current = [];
     setSegState((p) => { const n = { ...p }; codes.forEach((c) => { if (n[c] === 'busy') n[c] = 'idle'; }); return n; });
     setShimmer({});
     setPhase(doneCount() > 0 ? 'ready' : 'empty');
-    toast('Cancelled — kept ' + doneCount() + ' tệp');
+    toast('Cancelled — kept ' + doneCount() + ' segments');
   }
 
   function switchDomain(name: string) {
@@ -202,22 +251,35 @@ export default function App() {
     setSegState(Object.fromEntries(dm.segs.map((s) => [s.code, 'idle'])));
     setCurSeg(dm.segs[0].code);
     setShared({}); setPerSeg({}); setSharedFilled({}); setCharsEdited({}); setShimmer({});
-    setImgOverride({}); setBannerOverride({}); setPhase('empty'); setLayoutOpen(false);
+    setImgOverride({}); setBannerOverride({}); setOos([]); setSlotOverride({}); setPhase('empty'); setLayoutOpen(false);
+    setBriefOpen(false); setActiveImg(null); setBriefText(BRIEF_PREFILL);
     setTheme(recommendTheme(sendDate).theme);
     toast(name + (dm.real ? ' selected — real segment data loaded' : ' selected — sample data'));
   }
   function onDate(iso: string) { setSendDate(iso); const r = recommendTheme(iso); setTheme(r.theme); toast('Send date set — theme re-recommended: ' + r.theme); }
 
-  const tiles = seg(curSeg).prods.map((key, i) => {
+  const tiles = slotsFor(curSeg).map((key, i) => {
     const p = prod(key); const ov = imgOverride[`${curSeg}_${i}`];
-    return { key, i, name: p.name, price: p.price, src: ov || p.img };
+    return { key, i, name: p.name, price: p.price, src: ov || p.img, oos: oos.includes(key), copy: productCopy(key) };
   });
   function changeTileUrl(i: number) {
-    const cur = imgOverride[`${curSeg}_${i}`] || prod(seg(curSeg).prods[i]).img;
+    const cur = imgOverride[`${curSeg}_${i}`] || prod(slotsFor(curSeg)[i]).img;
     const u = window.prompt('Paste new image URL:', cur);
     if (u) { setImgOverride((p) => ({ ...p, [`${curSeg}_${i}`]: u.trim() })); toast('Image updated'); savedTick(); }
   }
   const bannerSrc = bannerOverride[domainName] || D.banner;
+  const briefLabel = (k: string) => k === 'banner' ? 'Banner (1200×420 px)' : `Image ${+k.slice(1) + 1} · ${tiles[+k.slice(1)]?.name ?? ''}`;
+  const dockSide = (k: string) => (k !== 'banner' && +k.slice(1) % 2 === 1) ? 'right' : 'left';
+  const briefImg = (k: string, src: string) => {
+    const has = !!(briefText[k] || '').trim();
+    return (
+      <div className={'brief-img' + (activeImg === k ? ' active' : '') + (has ? ' has' : '')}>
+        <img src={src} alt={briefLabel(k)} draggable={false} />
+        <button className="brief-edit" onClick={() => setActiveImg(k)}>✎ Brief new design</button>
+        {has && <span className="brief-has">✓ brief</span>}
+      </div>
+    );
+  };
   function changeBannerUrl() {
     const u = window.prompt('Paste new banner image URL:', bannerSrc);
     if (u) { setBannerOverride((p) => ({ ...p, [domainName]: u.trim() })); toast('Banner updated'); savedTick(); }
@@ -240,22 +302,28 @@ export default function App() {
   }
 
   function applySubjStyle(k: number) {
-    if (segState[curSeg] !== 'done') { toast('Generate first — subject styles apply to generated tệp'); return; }
+    if (segState[curSeg] !== 'done') { toast('Generate first — subject styles apply to generated segments'); return; }
     setSubjStyle(k); pushSeg(curSeg, 'subject', gen('subject', curSeg, k)); toast('Subject style ' + (k + 1) + ' applied (' + curSeg + ')'); savedTick();
   }
 
   function download(name: string, html: string) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); a.download = name; a.click();
   }
-  function exportBrief() {
-    const rows = codes.map((code) => {
-      const s = seg(code);
-      const pr = s.prods.map((key, i) => { const p = prod(key); return `<tr><td>P${i + 1}</td><td>${p.name}</td><td>${p.price}</td><td>${p.img.split('/').pop()}</td><td>564×564 px · product on brand background</td></tr>`; }).join('');
-      return `<h3>${code} · ${s.name} <span style="font-weight:400;color:#667">(repurchase ${s.rate}%)</span></h3><p style="color:#444;font-size:13px;background:#f6f7fb;padding:10px 12px;border-radius:8px"><b>Creative characteristics:</b> ${charsEdited[code] ?? s.chars}</p><table><thead><tr><th>Slot</th><th>Product</th><th>Price</th><th>Image asset</th><th>Spec / notes</th></tr></thead><tbody>${pr}</tbody></table>`;
-    }).join('<hr>');
-    download(`design_brief_${domainName}_${sendDate}.html`,
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Design brief</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#172018}h1{font-size:22px}h3{margin:22px 0 6px}table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}th,td{border:1px solid #ddd;padding:7px 9px;text-align:left}th{background:#f2f4f8;font-size:10.5px;text-transform:uppercase}hr{border:none;border-top:2px solid #eee;margin:22px 0}</style></head><body><h1>🎨 Design brief — ${domainName} · ${niceDate(sendDate)} · ${theme}</h1><p style="color:#667">Banner 1200×420 · ${codes.length} tệp · ${codes.length * 6} product images.</p>${rows}</body></html>`);
-    toast('🎨 Design brief exported — ' + codes.length + ' tệp · ' + codes.length * 6 + ' images');
+  // Final export from the design-brief popup: one card per image that has a brief —
+  // each shows the CURRENT image (so the designer sees which asset, on what base) +
+  // the brief text. Then close the popup and return to screen 1 (Email HTML Create).
+  function exportDesignBrief() {
+    const entries = Object.keys(briefText).filter((k) => (briefText[k] || '').trim());
+    const srcFor = (k: string) => k === 'banner' ? bannerSrc : (imgOverride[`${curSeg}_${+k.slice(1)}`] || prod(slotsFor(curSeg)[+k.slice(1)]).img);
+    const abs = (src: string) => /^https?:/i.test(src) ? src : location.origin + src;
+    const cards = entries.map((k) => {
+      const src = srcFor(k);
+      return `<div class="bcard"><h3>${escapeHtml(briefLabel(k))}</h3><div class="cur"><img src="${abs(src)}" alt=""><div class="cap">Current image to redesign<br><code>${escapeHtml(src.split('/').pop() || '')}</code></div></div><div class="lbl">Brief</div><pre>${escapeHtml(briefText[k])}</pre></div>`;
+    }).join('');
+    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Design brief — ${domainName}</title><style>body{font-family:Arial,sans-serif;max-width:820px;margin:24px auto;padding:0 16px;color:#172018}h1{font-size:22px;margin-bottom:2px}.sub{color:#667;font-size:13px;margin-bottom:18px}.bcard{border:1px solid #e2e6f0;border-radius:10px;padding:16px;margin-bottom:14px;background:#f8f9fc}.bcard h3{margin:0 0 10px;font-size:15px;color:#22409A}.cur{display:flex;gap:14px;align-items:center;margin-bottom:12px}.cur img{width:150px;height:auto;border-radius:8px;border:1px solid #dfe4ee;background:#fff}.cur .cap{font-size:12px;color:#667;line-height:1.5}.cur code{font-family:Consolas,monospace;font-size:11px;color:#334}.lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#8a8f9c;margin-bottom:4px}.bcard pre{white-space:pre-wrap;font:inherit;font-size:13px;line-height:1.55;margin:0}</style></head><body><h1>🎨 Design brief — ${domainName}</h1><div class="sub">${curSeg} · ${escapeHtml(seg(curSeg).name)} · ${niceDate(sendDate)} · ${escapeHtml(theme)} · ${entries.length} image brief(s)</div>${cards || '<p>No image briefs added.</p>'}</body></html>`;
+    download(`design_brief_${domainName}_${curSeg}_${sendDate}.html`, doc);
+    toast('🎨 Design brief exported — ' + entries.length + ' image brief(s)');
+    setBriefOpen(false); setActiveImg(null);
   }
   function currentSubjectText() { const m = segContent('subject').match(/s-subj">([^<]*)/); return m ? m[1] : ''; }
   function buildEmailHtml() {
@@ -268,14 +336,9 @@ export default function App() {
       <div style="padding:6px 10px">${sharedContent('offer')}</div>
       <div style="padding:6px 10px">${sharedContent('ps')}</div>
       <div style="padding:16px;text-align:center;color:#8a8f9c;font-size:11px">Unsubscribe: {{unsubscribe}}</div>`;
-    const head = `<!--\n  Domain: ${domainName}\n  Tệp: ${curSeg} · ${seg(curSeg).name}\n  Subject: ${currentSubjectText()}\n  Merge tags preserved — replaced by SendGrid at send time.\n-->\n`;
+    const head = `<!--\n  Domain: ${domainName}\n  Segment: ${curSeg} · ${seg(curSeg).name}\n  Subject: ${currentSubjectText()}\n  Merge tags preserved — replaced by SendGrid at send time.\n-->\n`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>.accent{color:${D.accent};font-weight:700}.rev{font-style:italic}.tagchip{font-family:monospace}p{margin:0 0 8px}</style></head><body>${head}<div style="max-width:600px;margin:0 auto;font-family:arial,sans-serif">${body}</div></body></html>`;
   }
-  function exportHTML() {
-    download(`email_${domainName}_${curSeg}.html`, buildEmailHtml());
-    toast('HTML exported (' + domainName + ' · ' + curSeg + ')');
-  }
-
   // SEAM #1 — Part 2: create a SendGrid Dynamic Template + auto-log to the tracking
   // sheet. Backend: /api/create-template (Vercel serverless, same repo). Same-origin
   // on the Vercel deploy; set VITE_API_BASE to the Vercel URL for GitHub Pages builds.
@@ -317,14 +380,19 @@ export default function App() {
       return (
         <div className={'tiles l-' + prodLayout}>
           {tiles.map((t) => (
-            <div className="tile" key={t.i}>
+            <div className={'tile' + (t.oos ? ' oos' : '')} key={t.i}>
               <div className="eimg">
                 <span className="pbadge">P{t.i + 1}</span>
+                {t.oos ? <span className="oosrib">Out of stock</span> : <span className="popout">{t.copy.popout}</span>}
                 <img src={t.src} alt={t.name} draggable={false} />
                 {!locked && <span className="eimg-ovl"><span className="cap">🖼 {t.name}</span><span><button onClick={() => changeTileUrl(t.i)}>Change URL</button></span></span>}
               </div>
+              <div className="tiletag">{t.copy.tag}</div>
               <div className="tilecap">{t.name}</div>
+              <div className="tilemain">{t.copy.main}</div>
+              <div className="tilereview">★★★★★ “{t.copy.review}” — {t.copy.reviewer}</div>
               <div className="tileprice">{t.price}</div>
+              <div className="tilecta">🛒 Add to cart</div>
             </div>
           ))}
         </div>
@@ -382,16 +450,30 @@ export default function App() {
               </Acc>
 
               <Acc n={3} title="Products & content" summary={seg(curSeg).name + ' · 6 products'} open={accOpen[2]} onToggle={() => toggleAcc(2)}>
-                <div className="field"><label>Tên tệp (focus segment) — all {codes.length} tệp generate</label>
+                <div className="field"><label>Segment (focus) — all {codes.length} segments generate</label>
                   <select className="sel" value={curSeg} onChange={(e) => setCurSeg(e.target.value)}>
                     {codes.map((c) => <option key={c} value={c}>{c} · {seg(c).name}{segState[c] === 'done' ? ' ✓' : ''}</option>)}
                   </select>
                 </div>
-                <div className="field"><label>Products — p1–p6 <span className="recstar">★ AI-recommended · locked</span></label>
-                  <div className="pchips">
-                    {tiles.map((t) => <span className="pchip" key={t.i} title="AI-recommended · locked"><span className="sl">P{t.i + 1}</span>{t.name} <span className="lk">🔒</span></span>)}
+                <div className="field"><label>Products — P1–P{tiles.length} <span className="recstar">★ AI-recommended</span></label>
+                  <div className="pslots">
+                    {tiles.map((t) => (
+                      <div className={'pslot' + (t.oos ? ' oos' : '')} key={t.i}>
+                        <span className="sl">P{t.i + 1}</span>
+                        <select className="psel" value={t.key} onChange={(e) => swapSlot(curSeg, t.i, e.target.value)} title="Swap this product (in-stock, not already used)">
+                          {t.oos && <option value={t.key} disabled>{t.name} — out of stock</option>}
+                          {availFor(curSeg, t.i).map((k) => <option key={k} value={k}>{prod(k).name}</option>)}
+                        </select>
+                        <button className="oosbtn" title="Mark out of stock & auto-replace with an available product" onClick={() => markOOS(curSeg, t.i)}>⊘</button>
+                      </div>
+                    ))}
                   </div>
-                  <div className="hint">Products are AI-recommended per tệp from the segment mapping and locked. You can still change an image in the preview (hover → Change URL).</div>
+                  {oos.length > 0 && (
+                    <div className="ooslist"><span className="oostag">Out of stock:</span>{oos.map((k) => (
+                      <button className="ooschip" key={k} title="Mark back in stock" onClick={() => restoreStock(k)}>{prod(k).name} ✕</button>
+                    ))}</div>
+                  )}
+                  <div className="hint">AI recommends 6 products per segment. Swap any slot if a product is sold out — the picker only offers in-stock products not already used in this segment. “⊘” marks it out of stock and auto-replaces it.</div>
                 </div>
                 <div className="field"><label>Content characteristics (steers the AI)</label>
                   <textarea className="chars" value={charsEdited[curSeg] ?? seg(curSeg).chars} onChange={(e) => { setCharsEdited((p) => ({ ...p, [curSeg]: e.target.value })); savedTick(); }} />
@@ -409,9 +491,8 @@ export default function App() {
             </div>
 
             <div className="genwrap">
-              <button className="btn-brief" onClick={exportBrief}>🎨 Export design brief</button>
               <button className="btn-gen" disabled={phase === 'gen'} onClick={() => runGeneration(doneCount() === codes.length)}>
-                {phase === 'gen' ? `⏳ Generating… ${doneCount()}/${codes.length} tệp` : doneCount() === codes.length ? '↻ Regenerate All' : doneCount() > 0 ? '⚡ Generate remaining tệp' : '⚡ Generate Email'}
+                {phase === 'gen' ? `⏳ Generating… ${doneCount()}/${codes.length} segments` : doneCount() === codes.length ? '↻ Regenerate All' : doneCount() > 0 ? '⚡ Generate remaining segments' : '⚡ Generate Email'}
               </button>
               {phase === 'gen' && <button className="btn-cancel" onClick={cancelGeneration}>✕ Cancel</button>}
             </div>
@@ -427,7 +508,7 @@ export default function App() {
                 <button className={width === 'mobile' ? 'on' : ''} onClick={() => setWidth('mobile')}>Mobile</button>
               </div>
               <label className="toggle" onClick={() => setDark((v) => !v)}>Dark inbox <span className={'switch ' + (dark ? 'on' : '')} /></label>
-              <button className="btn-exp" disabled={!canHandoff} title={canHandoff ? '' : 'Generate first'} onClick={exportHTML}>⬇ Export HTML</button>
+              <button className="btn-exp" disabled={!canHandoff} title={canHandoff ? '' : 'Generate first'} onClick={() => { setBriefOpen(true); setActiveImg(null); }}>🎨 Export design brief</button>
             </div>
 
             <div className="segbar">
@@ -442,7 +523,7 @@ export default function App() {
                   {segState[curSeg] === 'done' ? 'generated' : segState[curSeg] === 'busy' ? 'generating…' : 'not generated'}
                 </span>
               </span>
-              {phase === 'ready' && <button className="qchip" onClick={() => toast('⚠ Tệp T8 repurchase 27% — below target · ⚠ 1 subject over 60 chars')}>Score 86 · 2 ⚠</button>}
+              {phase === 'ready' && <button className="qchip" onClick={() => toast('⚠ Segment T8 repurchase 27% — below target · ⚠ 1 subject over 60 chars')}>Score 86 · 2 ⚠</button>}
               <span className="spacer" />
               <button className="laybtn" disabled={locked} onClick={() => setLayoutOpen((v) => !v)}>🧩 Layout <span>· {PL_LABEL[prodLayout]} · {FLOW_LABEL[bodyFlow]}</span> <span className="car">▾</span></button>
             </div>
@@ -472,7 +553,7 @@ export default function App() {
             )}
 
             {locked && <div className="pv-hint">🔒 Preview locked — pick your setup on the left, then press <b>Generate Email</b> to build it</div>}
-            {phase === 'gen' && <div className="pv-hint"><b>Generating…</b> foundation first, then one patch per tệp</div>}
+            {phase === 'gen' && <div className="pv-hint"><b>Generating…</b> foundation first, then one patch per segment</div>}
 
             <div className={'canvas ' + (dark ? 'dark' : '')}>
               <div className={'pvcol ' + (width === 'mobile' ? 'mobile' : '')}>
@@ -529,6 +610,52 @@ export default function App() {
           <p>Built by another module (Part 2). When you press <b>Create Template_ID</b> on screen 1, the finished email is handed off here to become a SendGrid <code>template_id</code>. Out of scope for Part 1.</p>
         </div>
       </div>
+
+      {briefOpen && (
+        <div className="briefov" onClick={(e) => { if (e.target === e.currentTarget) setActiveImg(null); }}>
+          <div className="brief-head">
+            <b>🎨 Design brief</b>
+            <span>{domainName} · {curSeg} · {niceDate(sendDate)} · {theme}</span>
+            <span className="bh-hint">Hover any image → <b>✎ Brief new design</b> to request a redesign</span>
+          </div>
+
+          <div className="brief-scroll">
+            <div className="brief-email">
+              {briefImg('banner', bannerSrc)}
+              <div className="be-txt center" dangerouslySetInnerHTML={{ __html: sanitize(sharedContent('headline')) }} />
+              <div className="be-txt" dangerouslySetInnerHTML={{ __html: sanitize(segContent('story')) }} />
+              <div className="be-tiles">
+                {tiles.map((t) => (
+                  <div className="be-tile" key={t.i}>
+                    {briefImg('p' + t.i, t.src)}
+                    <div className="be-main">{t.copy.main}</div>
+                    <div className="be-review">★★★★★ “{t.copy.review}” — {t.copy.reviewer}</div>
+                    <div className="be-price">{t.price}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="be-txt" dangerouslySetInnerHTML={{ __html: sanitize(sharedContent('offer')) }} />
+              <div className="be-txt" dangerouslySetInnerHTML={{ __html: sanitize(sharedContent('ps')) }} />
+            </div>
+          </div>
+
+          {activeImg && (
+            <div className={'brief-panel ' + dockSide(activeImg)} onClick={(e) => e.stopPropagation()}>
+              <div className="bp-head"><b>Brief · {briefLabel(activeImg)}</b><button onClick={() => setActiveImg(null)}>✕</button></div>
+              <textarea className="bp-ta" autoFocus placeholder="Describe the new design you want the designer to create for this image…"
+                value={briefText[activeImg] || ''} onChange={(e) => setBriefText((p) => ({ ...p, [activeImg]: e.target.value }))} />
+              <div className="bp-hint">This note is included in the exported brief for the designer.</div>
+            </div>
+          )}
+
+          <div className="brief-bar" onClick={(e) => e.stopPropagation()}>
+            <span className="bb-info">{Object.keys(briefText).filter((k) => (briefText[k] || '').trim()).length} image brief(s) added</span>
+            <span className="spacer" />
+            <button className="bb-cancel" onClick={() => setBriefOpen(false)}>Close</button>
+            <button className="bb-exp" onClick={exportDesignBrief}>⬇ Final export design brief →</button>
+          </div>
+        </div>
+      )}
 
       <div className={'toast ' + (toastMsg ? 'on' : '')}>{toastMsg}</div>
     </>

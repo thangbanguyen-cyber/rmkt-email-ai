@@ -35,7 +35,7 @@ export const OCCASIONS: Occasion[] = [
   { id: 'valentines',   theme: "Valentine's",  why: "Valentine's Day (14 Feb) lead-up",       date: { month: 2,  day: 14 }, windowDays: 10 },
   // FIFA World Cup 2026 (USA/Canada/Mexico): 11 Jun → 19 Jul 2026. Range event.
   { id: 'world_cup_26', theme: 'World Cup',    why: 'FIFA World Cup 2026 (11 Jun – 19 Jul)',  date: { month: 6,  day: 11 }, end: { month: 7, day: 19 }, windowDays: 14 },
-  // US Independence Day — "ngày giải phóng Mỹ" 4 Jul. Single day.
+  // US Independence Day — 4 Jul. Single day.
   { id: 'independence', theme: 'July 4th',     why: 'US Independence Day (4 Jul)',            date: { month: 7,  day: 4  }, windowDays: 10 },
   { id: 'halloween',    theme: 'Halloween',    why: 'Halloween (31 Oct) lead-up',             date: { month: 10, day: 31 }, windowDays: 14 },
   { id: 'black_friday', theme: 'Black Friday', why: 'Black Friday week (27 Nov 2026)',        date: { month: 11, day: 27 }, windowDays: 10 },

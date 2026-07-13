@@ -1,5 +1,5 @@
 // ============================================================================
-// DATA MODEL — domains, catalog, and the 8 tệp (segments) from
+// DATA MODEL — domains, catalog, and the 8 segments from
 // `segment_mapping.csv`. BraGoddess is wired with real data + real images.
 //
 // SEAM #3 (AI product images): every product's `img` points at a static file
@@ -13,10 +13,10 @@ export type Catalog = Record<string, Product>;
 
 export type Segment = {
   code: string;      // T1..T8
-  name: string;      // Vietnamese tệp name
+  name: string;      // segment name (English)
   rate: number;      // repurchase probability %
   prods: string[];   // 6 catalog keys, p1..p6
-  chars: string;     // tinh_chat — content characteristics (steers the AI)
+  chars: string;     // content characteristics (steers the AI)
 };
 
 export type Domain = {
@@ -47,32 +47,32 @@ export const CATALOG: Catalog = {
   posybra:      { name: 'Posy Bra',      img: IMG + 'posybra.jpg',      price: '$22.99' },
 };
 
-// ---- 8 tệp from segment_mapping.csv ----
+// ---- 8 segments from segment_mapping.csv ----
 export const BRA_SEGS: Segment[] = [
-  { code: 'T1', name: 'Tệp Bra Định Hình', rate: 46,
+  { code: 'T1', name: 'Shapewear Bra Buyers', rate: 46,
     prods: ['lushfitting','stretchactive','daisybra','zenchic','doveloom','icyshorts'],
-    chars: 'Mua 1 lần bra định hình/nâng ngực, 46-150 ngày chưa quay lại. Quan tâm tôn dáng, nâng đỡ, che khuyết điểm. Content: nhấn hiệu ứng định hình & lợi ích lần mua tiếp theo; p3-p4 là bra thoải mái để mở gu so sánh.' },
-  { code: 'T2', name: 'Tệp Bra Thoải Mái', rate: 44,
+    chars: 'Bought a shaping / push-up bra once, 46-150 days since last order. Care about silhouette, support, hiding flaws. Content: emphasize the shaping effect & the payoff of the next purchase; p3-p4 are comfort bras to broaden taste for comparison.' },
+  { code: 'T2', name: 'Comfort Bra Buyers', rate: 44,
     prods: ['zenchic','stretchactive','lushfitting','rosylift','doveloom','icyshorts'],
-    chars: 'Mua 1 lần bra thoải mái/không gọng, 46-150 ngày chưa quay lại. Ưu tiên dễ chịu, chất liệu mềm, mặc hằng ngày. Content: nhấn cảm giác thoải mái cả ngày; p3-p4 là bra định hình để gợi nâng cấp (26% khách đổi dòng khi quay lại).' },
-  { code: 'T3', name: 'Tệp Mua 1 Lần – Khác', rate: 31,
+    chars: 'Bought a comfort / wireless bra once, 46-150 days since last order. Prioritize ease, soft fabric, everyday wear. Content: emphasize all-day comfort; p3-p4 are shaping bras to suggest an upgrade (26% of customers switch lines when they return).' },
+  { code: 'T3', name: 'One-Time Buyers — Other', rate: 31,
     prods: ['sonashape','doveloom','rosylift','daisybra','zoeshape','veracomfort'],
-    chars: 'Mua 1 lần sản phẩm ngoài bra (quần, panties...), 46-150 ngày chưa quay lại. Chưa rõ gu bra. Content: giới thiệu danh mục bra chủ lực qua bestseller, thông điệp khám phá sản phẩm signature.' },
-  { code: 'T4', name: 'Tệp Khách Mới', rate: 52,
+    chars: 'Bought once outside bras (bottoms, panties...), 46-150 days since last order. Bra taste unknown. Content: introduce the core bra range via bestsellers; message about discovering signature products.' },
+  { code: 'T4', name: 'New Customers', rate: 52,
     prods: ['sonashape','doveloom','rosylift','daisybra','zoeshape','veracomfort'],
-    chars: 'Mua đơn đầu trong 45 ngày gần đây — đang trong giai đoạn hứng thú nhất. Content: chào mừng, khẳng định lựa chọn đúng, gợi sản phẩm bán chạy; nhịp quay lại điển hình ~57 ngày nên đây là email gieo mầm đơn thứ 2.' },
-  { code: 'T5', name: 'Tệp Tiềm Năng Trung Thành', rate: 49,
+    chars: 'Placed their first order within the last 45 days — in the most excited phase. Content: welcome, affirm the right choice, suggest bestsellers; typical repurchase ~57 days, so this email seeds the 2nd order.' },
+  { code: 'T5', name: 'Potential Loyalists', rate: 49,
     prods: ['sonashape','rosylift','doveloom','sofilace','daisybra','zoeshape'],
-    chars: 'Đã mua 2 đơn, vẫn active (≤90 ngày). Đang định hình gu và thói quen. Content: nuôi dưỡng quan hệ, gợi ý cân bằng giữa hợp gu và khám phá, đẩy sang đơn thứ 3 (mốc thành khách trung thành).' },
-  { code: 'T6', name: 'Tệp Trung Thành – Gu Cố Định', rate: 58,
+    chars: 'Two orders placed, still active (≤90 days). Forming taste and habits. Content: nurture the relationship, balance familiar picks with discovery, push toward the 3rd order (the loyalty milestone).' },
+  { code: 'T6', name: 'Loyal — Fixed Taste', rate: 58,
     prods: ['sonashape','posybra','daisybra','doveloom','sofilace','rosylift'],
-    chars: '≥3 đơn, active, mua tập trung 1-2 dòng quen. Biết mình thích gì. Content: tôn trọng gu — sản phẩm cùng dòng là chính, tri ân/độc quyền, tránh thay đổi thông điệp quá mạnh.' },
-  { code: 'T7', name: 'Tệp Trung Thành – Thích Khám Phá', rate: 55,
+    chars: '≥3 orders, active, concentrated on 1-2 familiar lines. Know what they like. Content: respect their taste — same-line products first, gratitude / exclusive tone, avoid overly disruptive messaging.' },
+  { code: 'T7', name: 'Loyal — Explorers', rate: 55,
     prods: ['posybra','daisybra','sonashape','doveloom','sofilace','rosylift'],
-    chars: '≥3 đơn, active, mua trải nhiều dòng. Thích cái mới, phản hồi tốt với đa dạng. Content: tuyển tập nhiều danh mục, phối đồ, cross-sale mạnh tay.' },
-  { code: 'T8', name: 'Tệp Sắp Rời Bỏ', rate: 27,
+    chars: '≥3 orders, active, buy across many lines. Like novelty, respond well to variety. Content: multi-category curation, outfit pairing, aggressive cross-sell.' },
+  { code: 'T8', name: 'At-Risk / Churning', rate: 27,
     prods: ['sonashape','posybra','doveloom','rosylift','daisybra','zoeshape'],
-    chars: 'Từng mua ≥2 đơn nhưng im 90-150 ngày — lệch khỏi nhịp mua của 2/3 khách. Content: win-back nhẹ nhàng, nhắc giá trị đã trải nghiệm, kèm hàng đang hot; cân nhắc ưu đãi giới hạn thời gian.' },
+    chars: 'Bought ≥2 orders but silent for 90-150 days — off the rhythm of 2/3 of customers. Content: gentle win-back, remind them of the value already experienced, include trending items; consider a time-limited offer.' },
 ];
 
 // ---- generic sample domains so the domain picker still demos ----
@@ -84,9 +84,9 @@ function genericDomain(accent: string, sender: string): Domain {
   });
   const keys = Object.keys(catalog);
   const segs: Segment[] = [
-    { code: 'S1', name: 'New subscribers', rate: 42, prods: keys.slice(0, 6), chars: 'Sample segment — real tệp data comes from the Segmentation module (only BraGoddess is wired in this prototype).' },
-    { code: 'S2', name: 'Repeat buyers',   rate: 56, prods: keys.slice(1, 7), chars: 'Sample segment — real tệp data pending.' },
-    { code: 'S3', name: 'Lapsed 90-day',   rate: 24, prods: keys.slice(2, 8), chars: 'Sample segment — real tệp data pending.' },
+    { code: 'S1', name: 'New subscribers', rate: 42, prods: keys.slice(0, 6), chars: 'Sample segment — real segment data comes from the Segmentation module (only BraGoddess is wired in this prototype).' },
+    { code: 'S2', name: 'Repeat buyers',   rate: 56, prods: keys.slice(1, 7), chars: 'Sample segment — real segment data pending.' },
+    { code: 'S3', name: 'Lapsed 90-day',   rate: 24, prods: keys.slice(2, 8), chars: 'Sample segment — real segment data pending.' },
   ];
   return { accent, sender, real: false, banner: `https://picsum.photos/seed/${encodeURIComponent(sender + 'banner')}/1200/420`, catalog, segs };
 }
