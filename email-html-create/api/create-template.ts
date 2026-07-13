@@ -110,6 +110,7 @@ export default async function handler(req: Req, res: Res) {
   }
 
   let sheetLogged = false;
+  let sheetError: string | undefined;
   try {
     const date = sendDate || new Date().toISOString().slice(0, 10);
     await appendSheetRow({
@@ -120,8 +121,9 @@ export default async function handler(req: Req, res: Res) {
       description: ["template", domain, segment, subject].filter(Boolean).join(" · "),
     });
     sheetLogged = true;
-  } catch {
+  } catch (err) {
     // fire-safe: template already exists in SendGrid — report, don't fail
+    sheetError = err instanceof Error ? err.message : String(err);
   }
 
   return res.status(200).json({
@@ -129,5 +131,6 @@ export default async function handler(req: Req, res: Res) {
     versionId,
     editorUrl: `https://mc.sendgrid.com/dynamic-templates/${templateId}`,
     sheetLogged,
+    ...(sheetError ? { sheetError } : {}),
   });
 }

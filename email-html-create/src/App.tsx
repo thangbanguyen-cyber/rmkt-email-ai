@@ -370,11 +370,11 @@ export default function App() {
           sendDate,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { templateId?: string; sheetLogged?: boolean; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { templateId?: string; sheetLogged?: boolean; error?: string; sheetError?: string };
       if (!res.ok || !data.templateId) throw new Error(data.error || 'HTTP ' + res.status);
       setPushResult({
         ok: true,
-        msg: `${name}\nTemplate ID: ${data.templateId}\nGoogle Sheet: ${data.sheetLogged ? 'row added ✓' : 'write FAILED ✗'}`,
+        msg: `${name}\nTemplate ID: ${data.templateId}\nGoogle Sheet: ${data.sheetLogged ? 'row added ✓' : 'write FAILED ✗' + (data.sheetError ? '\n' + data.sheetError : '')}`,
       });
     } catch (err) {
       setPushResult({ ok: false, msg: `${name}\n${err instanceof Error ? err.message : 'unknown error'}` });
