@@ -113,12 +113,12 @@ export default async function handler(req: Req, res: Res) {
   let sheetError: string | undefined;
   try {
     const date = sendDate || new Date().toISOString().slice(0, 10);
+    // 4-column row matching the team's existing convention (no description).
     await appendSheetRow({
       id: templateId,
       code: name,
       provider: "sendgrid",
       created: date,
-      description: ["template", domain, segment, subject].filter(Boolean).join(" · "),
     });
     sheetLogged = true;
   } catch (err) {
