@@ -120,7 +120,6 @@ const PL_LABEL: Record<string, string> = { stack: 'Stacked · 1 col', two: '2 pe
 const FLOW_LABEL: Record<string, string> = { continuous: 'Continuous body', opener: 'Opener + products', custom: 'Custom flow' };
 
 export default function App() {
-  const [tab, setTab] = useState<'create' | 'template'>('create');
   const [domainName, setDomainName] = useState('BraGoddess');
   const [sendDate, setSendDate] = useState('2026-07-08');
   const [theme, setTheme] = useState(recommendTheme('2026-07-08').theme);
@@ -162,6 +161,7 @@ export default function App() {
   const [saved, setSaved] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState('');
   const [pushing, setPushing] = useState(false);
+  const [pushResult, setPushResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const savedT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -342,17 +342,27 @@ export default function App() {
   // SEAM #1 — Part 2: create a SendGrid Dynamic Template + auto-log to the tracking
   // sheet. Backend: /api/create-template (Vercel serverless, same repo). Same-origin
   // on the Vercel deploy; set VITE_API_BASE to the Vercel URL for GitHub Pages builds.
+  // Sheet naming convention (matches existing tracking-sheet rows):
+  // {Domain}_{Ddd}{D}{Mon}{YY}_{segCode} — e.g. BraGoddess_Fri10Jul26_21 (day unpadded).
+  function templateName() {
+    const d = toDate(sendDate);
+    const ddd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    return `${domainName}_${ddd}${d.getDate()}${mon}${String(d.getFullYear()).slice(-2)}_${curSeg}`;
+  }
+
   async function createTemplateId() {
     if (segState[curSeg] !== 'done' || pushing) return;
     setPushing(true);
     toast('Creating SendGrid template… (' + curSeg + ')');
+    const name = templateName();
     try {
       const base = (import.meta.env.VITE_API_BASE as string | undefined) || '';
       const res = await fetch(base + '/api/create-template', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: `${domainName} · ${curSeg} · ${sendDate} · ${theme}`,
+          name,
           subject: currentSubjectText(),
           html: buildEmailHtml(),
           segment: curSeg,
@@ -362,9 +372,12 @@ export default function App() {
       });
       const data = (await res.json().catch(() => ({}))) as { templateId?: string; sheetLogged?: boolean; error?: string };
       if (!res.ok || !data.templateId) throw new Error(data.error || 'HTTP ' + res.status);
-      toast('✓ Template ' + data.templateId + ' created' + (data.sheetLogged ? ' · sheet row added' : ' · sheet log FAILED'));
+      setPushResult({
+        ok: true,
+        msg: `${name}\nTemplate ID: ${data.templateId}\nGoogle Sheet: ${data.sheetLogged ? 'row added ✓' : 'write FAILED ✗'}`,
+      });
     } catch (err) {
-      toast('✗ Template create failed: ' + (err instanceof Error ? err.message : 'unknown error'));
+      setPushResult({ ok: false, msg: `${name}\n${err instanceof Error ? err.message : 'unknown error'}` });
     } finally {
       setPushing(false);
     }
@@ -417,12 +430,11 @@ export default function App() {
         <div className="logo">{domainName[0]}</div>
         <div className="name">EmailAuto <span className="mtag">Part 1</span></div>
         <div className="t3wrap">
-          <button className={'t3 ' + (tab === 'create' ? 'on' : '')} onClick={() => setTab('create')}><span className="n">1</span>Email HTML Create</button>
-          <button className={'t3 ' + (tab === 'template' ? 'on' : '')} onClick={() => setTab('template')}><span className="n">2</span>Template_ID Create</button>
+          <button className="t3 on">Email HTML Create</button>
         </div>
       </header>
 
-      <div className={'tabpage ' + (tab === 'create' ? 'on' : '')}>
+      <div className="tabpage on">
         <div className="app">
           <aside className="left">
             <div className="steps">
@@ -603,13 +615,16 @@ export default function App() {
         </div>
       </div>
 
-      <div className={'tabpage ' + (tab === 'template' ? 'on' : '')}>
-        <div className="uc">
-          <div className="icn">🚧</div>
-          <h3>Template_ID Create</h3>
-          <p>Built by another module (Part 2). When you press <b>Create Template_ID</b> on screen 1, the finished email is handed off here to become a SendGrid <code>template_id</code>. Out of scope for Part 1.</p>
+      {pushResult && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,20,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPushResult(null)}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '22px 26px', maxWidth: 440, width: '90%', boxShadow: '0 18px 60px rgba(0,0,0,.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>{pushResult.ok ? '✅' : '❌'}</div>
+            <h3 style={{ margin: '0 0 6px' }}>{pushResult.ok ? 'Template created' : 'Create failed'}</h3>
+            <p style={{ margin: 0, fontSize: 13.5, color: '#3c4453', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{pushResult.msg}</p>
+            <button className="btn-push" style={{ marginTop: 16 }} onClick={() => setPushResult(null)}>OK</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {briefOpen && (
         <div className="briefov" onClick={(e) => { if (e.target === e.currentTarget) setActiveImg(null); }}>
